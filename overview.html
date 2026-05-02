@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BenchVision — Real-time control software for hydraulic test benches</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300;1,9..144,400;1,9..144,600&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy: #0d1b2a;
+  --navy-mid: #112233;
+  --navy-light: #1a2f44;
+  --teal: #0e8a7a;
+  --teal-dim: #13b09e;
+  --teal-faint: rgba(14,138,122,0.08);
+  --blue-accent: #3b82f6;
+  --cream: #f5f3ee;
+  --cream-dark: #ede9e0;
+  --ink: #1a1a2e;
+  --ink-mid: #2e3a4a;
+  --muted: #64748b;
+  --border: rgba(255,255,255,0.08);
+  --border-light: rgba(0,0,0,0.08);
+  --serif: 'Fraunces', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+  --mono: 'DM Mono', 'Courier New', monospace;
+  --section-pad: clamp(5rem, 10vw, 9rem);
+  --content-max: 1100px;
+  --radius: 12px;
+}
+
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  font-family: var(--sans);
+  background: var(--cream);
+  color: var(--ink);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── NAV ─────────────────────────────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 clamp(1.5rem, 5vw, 3.5rem);
+  height: 60px;
+  background: rgba(13,27,42,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-brand {
+  font-family: var(--sans);
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #fff;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.nav-brand span { color: var(--teal); }
+
+.nav-links {
+  display: flex; gap: 2rem; list-style: none;
+}
+
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.55);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  transition: color 0.2s;
+}
+
+.nav-links a:hover { color: var(--teal); }
+
+@media (max-width: 600px) {
+  .nav-links { gap: 1rem; }
+  .nav-links a { font-size: 0.68rem; }
+}
+
+/* ── HERO ────────────────────────────────────────────────────────────────── */
+.hero {
+  min-height: 100svh;
+  background: var(--navy);
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 80px clamp(1.5rem, 8vw, 5rem) var(--section-pad);
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 60% 30%, rgba(14,138,122,0.07) 0%, transparent 70%),
+              radial-gradient(ellipse 50% 40% at 10% 80%, rgba(59,130,246,0.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--teal);
+  border: 1px solid rgba(14,138,122,0.25);
+  border-radius: 999px;
+  padding: 0.35rem 0.85rem;
+  margin-bottom: 2rem;
+  letter-spacing: 0.03em;
+  width: fit-content;
+}
+
+.hero-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.5; transform:scale(0.8); }
+}
+
+.hero-heading {
+  font-family: var(--serif);
+  font-size: clamp(2.8rem, 6vw, 5rem);
+  font-weight: 400;
+  line-height: 1.05;
+  color: #fff;
+  max-width: 800px;
+  margin-bottom: 1.5rem;
+  letter-spacing: -0.03em;
+}
+
+.hero-heading em {
+  font-style: italic;
+  color: var(--teal);
+  font-weight: 300;
+}
+
+.hero-body {
+  font-size: clamp(1rem, 1.5vw, 1.15rem);
+  line-height: 1.7;
+  color: rgba(255,255,255,0.55);
+  max-width: 540px;
+  margin-bottom: 3rem;
+  font-weight: 300;
+}
+
+.hero-stats {
+  display: flex; flex-wrap: wrap; gap: 2rem;
+  align-items: center;
+}
+
+.hero-stat {
+  display: flex; align-items: baseline; gap: 0.5rem;
+}
+
+.hero-stat-val {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.hero-stat-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 0.04em;
+}
+
+.hero-stat-sep {
+  width: 1px; height: 20px;
+  background: rgba(255,255,255,0.12);
+}
+
+/* ── SECTION BASE ────────────────────────────────────────────────────────── */
+section {
+  padding: var(--section-pad) clamp(1.5rem, 8vw, 5rem);
+}
+
+.section-inner {
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--teal-dim);
+  margin-bottom: 1rem;
+}
+
+.section-heading {
+  font-family: var(--serif);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 400;
+  line-height: 1.1;
+  color: var(--ink);
+  margin-bottom: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.section-heading em {
+  font-style: italic;
+  color: var(--teal-dim);
+  font-weight: 300;
+}
+
+.section-body {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--muted);
+  max-width: 540px;
+  margin-bottom: 3rem;
+}
+
+/* ── SYSTEM LAYERS ───────────────────────────────────────────────────────── */
+#system { background: var(--cream); }
+
+.layer-list { display: flex; flex-direction: column; gap: 0; }
+
+.layer-item {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.35rem 1.5rem;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.layer-item:first-child { border-top: 1px solid var(--border-light); }
+
+.layer-item:hover {
+  background: rgba(14,138,122,0.04);
+  border-left-color: var(--teal);
+}
+
+.layer-item.open {
+  background: rgba(14,138,122,0.06);
+  border-left-color: var(--teal);
+}
+
+.layer-left {
+  display: flex; align-items: center; gap: 1.25rem;
+  flex: 1; min-width: 0;
+}
+
+.layer-num {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--teal-dim);
+  min-width: 24px;
+}
+
+.layer-name {
+  font-family: var(--sans);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.layer-tag {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.layer-chevron {
+  width: 16px; height: 16px;
+  color: var(--muted);
+  transition: transform 0.25s;
+  flex-shrink: 0;
+}
+
+.layer-item.open .layer-chevron { transform: rotate(90deg); color: var(--teal); }
+
+.layer-detail {
+  display: none;
+  padding: 0 1.5rem 1.25rem calc(1.5rem + 24px + 1.25rem);
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--muted);
+  border-left: 3px solid var(--teal);
+  background: rgba(14,138,122,0.04);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.layer-detail.open { display: block; }
+
+/* ── ROADMAP ─────────────────────────────────────────────────────────────── */
+#roadmap { background: var(--navy); }
+#roadmap .section-label { color: var(--teal); }
+#roadmap .section-heading { color: #fff; }
+#roadmap .section-body { color: rgba(255,255,255,0.45); }
+
+.phase-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255,255,255,0.06);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 3rem;
+}
+
+@media (max-width: 700px) {
+  .phase-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.phase-col {
+  background: var(--navy-mid);
+  padding: 1.5rem 1.25rem;
+}
+
+.phase-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.phase-col:nth-child(1) .phase-label { color: var(--teal); }
+.phase-col:nth-child(2) .phase-label { color: #a78bfa; }
+.phase-col:nth-child(3) .phase-label { color: #f97316; }
+.phase-col:nth-child(4) .phase-label { color: #fbbf24; }
+
+.milestone {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.milestone:last-child { border-bottom: none; }
+.milestone:hover { background: rgba(255,255,255,0.02); }
+
+.milestone-header {
+  display: flex; align-items: center; gap: 0.75rem;
+  margin-bottom: 0.3rem;
+}
+
+.milestone-id {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.25);
+  min-width: 24px;
+}
+
+.milestone-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.85);
+  flex: 1;
+}
+
+.milestone-status {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.2);
+  flex-shrink: 0;
+}
+
+.milestone-status.complete {
+  background: var(--teal);
+  border-color: var(--teal);
+  box-shadow: 0 0 6px rgba(14,138,122,0.5);
+}
+
+.milestone-status.active {
+  background: #fbbf24;
+  border-color: #fbbf24;
+  animation: activePulse 2s infinite;
+}
+
+@keyframes activePulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.4); }
+  50% { box-shadow: 0 0 0 5px rgba(251,191,36,0); }
+}
+
+.milestone-hrs {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.25);
+  padding-left: calc(24px + 0.75rem);
+}
+
+.milestone-detail-text {
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.4);
+  padding-left: calc(24px + 0.75rem);
+  margin-top: 0.5rem;
+  display: none;
+}
+
+.milestone.open .milestone-detail-text { display: block; }
+
+.roadmap-total {
+  display: flex; flex-wrap: wrap; gap: 2rem;
+  padding: 1.5rem;
+  background: var(--navy-light);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+.roadmap-total-item { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.roadmap-total-val {
+  font-family: var(--mono);
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #fff;
+}
+
+.roadmap-total-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.05em;
+}
+
+/* ── MODULAR ─────────────────────────────────────────────────────────────── */
+#modular { background: var(--cream-dark); }
+
+.modular-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1px;
+  background: var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.modular-card {
+  background: var(--cream);
+  padding: 2rem;
+  transition: background 0.2s;
+}
+
+.modular-card:hover { background: #fff; }
+
+.modular-card-num {
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--teal-dim);
+  margin-bottom: 0.75rem;
+}
+
+.modular-card-name {
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 400;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.modular-card-body {
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.modular-principle {
+  margin-top: 3rem;
+  padding: 2rem;
+  background: var(--navy);
+  border-radius: var(--radius);
+  display: flex; align-items: flex-start; gap: 1.5rem;
+}
+
+.modular-principle-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: var(--teal-faint);
+  border: 1px solid rgba(14,138,122,0.2);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.modular-principle-icon svg {
+  width: 16px; height: 16px;
+  stroke: var(--teal);
+}
+
+.modular-principle-text {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 300;
+  font-style: italic;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.6;
+}
+
+/* ── PARTNERSHIP ─────────────────────────────────────────────────────────── */
+#partnership { background: var(--cream); }
+
+.partnership-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+@media (max-width: 640px) { .partnership-grid { grid-template-columns: 1fr; } }
+
+.partner-card {
+  padding: 2rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+}
+
+.partner-card.pixie {
+  background: linear-gradient(135deg, rgba(13,27,42,0.97) 0%, rgba(17,34,51,0.95) 100%);
+  border-color: rgba(14,138,122,0.2);
+}
+
+.partner-card.devon {
+  background: var(--cream-dark);
+}
+
+.partner-name {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.25rem;
+}
+
+.partner-card.pixie .partner-name { color: var(--teal); }
+.partner-card.devon .partner-name { color: var(--muted); }
+
+.partner-item {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.partner-card.pixie .partner-item { color: rgba(255,255,255,0.65); }
+.partner-card.devon .partner-item { color: var(--ink-mid); }
+
+.partner-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  margin-top: 0.55rem;
+  flex-shrink: 0;
+}
+
+.partner-card.pixie .partner-dot { background: var(--teal); }
+.partner-card.devon .partner-dot { background: var(--muted); }
+
+.revenue-section { margin-top: 1.5rem; }
+
+.revenue-heading {
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  font-weight: 400;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.revenue-heading em { font-style: italic; color: var(--teal-dim); font-weight: 300; }
+
+.revenue-body {
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+  max-width: 540px;
+}
+
+.revenue-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+@media (max-width: 640px) { .revenue-grid { grid-template-columns: 1fr; } }
+
+.revenue-card {
+  background: var(--cream);
+  padding: 1.5rem;
+  transition: background 0.2s;
+}
+
+.revenue-card:hover { background: #fff; }
+
+.revenue-card-label {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--teal-dim);
+  margin-bottom: 0.75rem;
+}
+
+.revenue-card-scenario {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 0.5rem;
+}
+
+.revenue-card-detail {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ── PROGRESS ────────────────────────────────────────────────────────────── */
+#progress { background: var(--navy); }
+#progress .section-label { color: var(--teal); }
+#progress .section-heading { color: #fff; }
+#progress .section-body { color: rgba(255,255,255,0.45); }
+
+.progress-phases {
+  display: flex; flex-direction: column; gap: 1px;
+  background: rgba(255,255,255,0.05);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.progress-phase {
+  background: var(--navy-mid);
+  padding: 1.5rem;
+  display: flex; align-items: center; gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .progress-phase { flex-direction: column; align-items: flex-start; }
+}
+
+.progress-phase-name {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: rgba(255,255,255,0.7);
+  min-width: 160px;
+}
+
+.progress-bar-wrap {
+  flex: 1;
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.8s cubic-bezier(0.16,1,0.3,1);
+}
+
+.progress-pct {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.35);
+  min-width: 36px;
+  text-align: right;
+}
+
+.progress-note {
+  padding: 1.25rem 1.5rem;
+  background: var(--navy-light);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.4);
+  line-height: 1.7;
+}
+
+.progress-note strong {
+  color: var(--teal);
+  font-weight: 500;
+}
+
+/* ── FOOTER ──────────────────────────────────────────────────────────────── */
+footer {
+  background: var(--navy);
+  border-top: 1px solid var(--border);
+  padding: 2.5rem clamp(1.5rem, 8vw, 5rem);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+}
+
+.footer-brand {
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: rgba(255,255,255,0.4);
+}
+
+.footer-brand span { color: var(--teal); }
+
+.footer-note {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 0.04em;
+}
+
+/* ── FADE IN ─────────────────────────────────────────────────────────────── */
+.fade-in {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.fade-in.visible { opacity: 1; transform: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-brand">bench<span>vision</span></a>
+  <ul class="nav-links">
+    <li><a href="#system">System</a></li>
+    <li><a href="#safety">Safety</a></li>
+    <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#modular">Modular</a></li>
+    <li><a href="#partnership">Partnership</a></li>
+    <li><a href="#progress">Progress</a></li>
+    <li><a href="/" style="opacity:0.4;font-size:0.68rem">← Portal</a></li>
+  </ul>
+</nav>
+
+<!-- ── HERO ──────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-badge">Project reference — Design Develop Host × Specialised Steering</div>
+  <h1 class="hero-heading">Real-time control software<br>for <em>hydraulic test benches</em></h1>
+  <p class="hero-body">A bespoke, open-source Python platform for acquiring, controlling, logging, and certifying hydraulic component tests. Built to be safe first, modular by design, and scalable across any bench configuration.</p>
+  <div class="hero-stats">
+    <div class="hero-stat">
+      <span class="hero-stat-val">220–406</span>
+      <span class="hero-stat-label">estimated hours</span>
+    </div>
+    <div class="hero-stat-sep"></div>
+    <div class="hero-stat">
+      <span class="hero-stat-val">10</span>
+      <span class="hero-stat-label">milestones</span>
+    </div>
+    <div class="hero-stat-sep"></div>
+    <div class="hero-stat">
+      <span class="hero-stat-val">End 2026</span>
+      <span class="hero-stat-label">target delivery</span>
+    </div>
+    <div class="hero-stat-sep"></div>
+    <div class="hero-stat">
+      <span class="hero-stat-val">Python 3.11</span>
+      <span class="hero-stat-label">open-source stack</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── SYSTEM ─────────────────────────────────────────────────────────────── -->
+<section id="system">
+  <div class="section-inner">
+    <div class="fade-in">
+      <p class="section-label">What is being built</p>
+      <h2 class="section-heading">Seven layers, <em>one system</em></h2>
+      <p class="section-body">Every layer serves a specific purpose. Each one must be built, tested, and proven before the next begins. Tap any layer to understand what it does.</p>
+    </div>
+    <div class="layer-list fade-in">
+
+      <div class="layer-item" onclick="toggleLayer(this)">
+        <div class="layer-left">
+          <span class="layer-num">01</span>
+          <span class="layer-name">Physical sensors</span>
+        </div>
+        <span class="layer-tag">The hardware</span>
+        <svg class="layer-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="layer-detail">Pressure transducers, flow meters, RTDs, torque flanges, and encoders wired to the bench. These convert physical quantities into electrical signals — 4–20 mA current loops or 0–10 V voltage — that the software can read. Every measurement the system makes starts here. If a sensor is wrong, everything downstream is wrong.</div>
+
+      <div class="layer-item" onclick="toggleLayer(this)">
+        <div class="layer-left">
+          <span class="layer-num">02</span>
+          <span class="layer-name">Data acquisition &amp; scaling</span>
+        </div>
+        <span class="layer-tag">Raw → engineering units</span>
+        <svg class="layer-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="layer-detail">DAQ hardware digitises the analog signals at 100–1000 samples per second. The software then applies calibrated scaling to convert raw voltages into meaningful engineering values — bar, L/min, °C, RPM, Nm. This layer is where sensor calibration certificates are applied and where a broken wire (0 mA on a 4–20 mA loop) is detected as a fault.</div>
+
+      <div class="layer-item" onclick="toggleLayer(this)">
+        <div class="layer-left">
+          <span class="layer-num">03</span>
+          <span class="layer-name">Safety monitor</span>
+        </div>
+        <span class="layer-tag">Runs independently</span>
+        <svg class="layer-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="layer-detail">The most critical layer. It runs in its own dedicated thread, completely independent of the test sequence. Every sensor reading is checked against multi-level alarm limits on every cycle. If a critical limit is exceeded, outputs go to zero immediately — this layer does not wait for the state machine. It also services the hardware watchdog, so a software crash cannot leave the bench pressurised.</div>
+
+      <div class="layer-item" onclick="toggleLayer(this)">
+        <div class="layer-left">
+          <span class="layer-num">04</span>
+          <span class="layer-name">State machine &amp; PID control</span>
+        </div>
+        <span class="layer-tag">Test sequence logic</span>
+        <svg class="layer-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="layer-detail">The state machine orchestrates the test sequence — Idle → Initialise → Ramp Up → Hold → Ramp Down → Shutdown → Report — ensuring each phase completes correctly before the next begins. The PID controller continuously adjusts the proportional valve to maintain the target pressure or flow, correcting for system variations in real time. These two systems work together to make the test automatic, repeatable, and safe.</div>
+
+      <div class="layer-item" onclick="toggleLayer(this)">
+        <div class="layer-left">
+          <span class="layer-num">05</span>
+          <span class="layer-name">Operator interface</span>
+        </div>
+        <span class="layer-tag">What the technician sees</span>
+        <svg class="layer-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="layer-detail">The desktop HMI built in PyQt5 and PyQtGraph. Live gauges for every sensor channel, a scrolling trend chart, colour-coded alarm indicators, and the Start/Stop controls. The layout is designed around the technician's workflow — wireframed and reviewed before any code is written. A well-designed interface on a hydraulic bench is a safety feature, not an aesthetic one.</div>
+
+      <div class="layer-item" onclick="toggleLayer(this)">
+        <div class="layer-left">
+          <span class="layer-num">06</span>
+          <span class="layer-name">Data logging</span>
+        </div>
+        <span class="layer-tag">The record</span>
+        <svg class="layer-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="layer-detail">Runs asynchronously — it never blocks the control loop. Every sensor reading is timestamped and written to CSV and a SQLite database throughout the entire test. Fault events get a full sensor snapshot at the moment they fire. Log files are write-once. Nothing is lost, nothing can be altered after the fact.</div>
+
+      <div class="layer-item" onclick="toggleLayer(this)">
+        <div class="layer-left">
+          <span class="layer-num">07</span>
+          <span class="layer-name">Reporting &amp; test certificate</span>
+        </div>
+        <span class="layer-tag">The deliverable</span>
+        <svg class="layer-chevron" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+      <div class="layer-detail">On test completion, the software automatically generates a professional PDF certificate containing the component details, test conditions, all sensor results, pass/fail assessment against specification limits, trend graphs, and calibration references. The test register database is updated. The certificate is ready for customer delivery without a technician touching a spreadsheet.</div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── SAFETY ARCHITECTURE ───────────────────────────────────────────────── -->
+<section id="safety" style="background:var(--navy);">
+  <div class="section-inner">
+    <div class="fade-in">
+      <p class="section-label" style="color:var(--teal);">Safety architecture</p>
+      <h2 class="section-heading" style="color:#fff;">Built to be <em style="color:var(--teal);">safe first</em></h2>
+      <p class="section-body" style="color:rgba(255,255,255,0.45);">Safety is not a feature added at the end — it is a structural constraint baked into the architecture from the start. Three design decisions enforce this.</p>
+    </div>
+    <div class="fade-in" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1px;background:rgba(255,255,255,0.06);border-radius:var(--radius);overflow:hidden;margin-bottom:2rem;">
+
+      <div style="background:var(--navy-mid);padding:2rem;">
+        <div style="font-family:var(--mono);font-size:0.68rem;color:var(--teal);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.75rem;">01 — Independent thread</div>
+        <div style="font-family:var(--serif);font-size:1.1rem;font-weight:400;color:#fff;margin-bottom:0.75rem;letter-spacing:-0.02em;">Safety runs separately — always</div>
+        <div style="font-size:0.88rem;line-height:1.7;color:rgba(255,255,255,0.5);">The safety monitor runs in its own dedicated thread at the highest OS priority. A bug in the test sequence, a frozen state machine, or a slow UI cannot prevent safety from firing. If a sensor exceeds a critical limit, outputs go to zero immediately — on that cycle. The watchdog timer ensures a software crash cannot leave the bench pressurised.</div>
+      </div>
+
+      <div style="background:var(--navy-mid);padding:2rem;">
+        <div style="font-family:var(--mono);font-size:0.68rem;color:var(--teal);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.75rem;">02 — E-stop integration</div>
+        <div style="font-family:var(--serif);font-size:1.1rem;font-weight:400;color:#fff;margin-bottom:0.75rem;letter-spacing:-0.02em;">Hardware and software working together</div>
+        <div style="font-size:0.88rem;line-height:1.7;color:rgba(255,255,255,0.5);">The physical E-stop button on the bench is wired directly to the hardware relay — hardware safety is always primary. BenchVision also monitors the E-stop digital input on every safety cycle: pressing the button triggers an immediate software shutdown, fault logging with a full sensor snapshot, and a controlled sequence that closes valves and depressurises safely. Both layers must be satisfied for the bench to run.</div>
+      </div>
+
+      <div style="background:var(--navy-mid);padding:2rem;">
+        <div style="font-family:var(--mono);font-size:0.68rem;color:var(--teal);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.75rem;">03 — Hardware-agnostic design</div>
+        <div style="font-family:var(--serif);font-size:1.1rem;font-weight:400;color:#fff;margin-bottom:0.75rem;letter-spacing:-0.02em;">The safety layer does not depend on any one DAQ</div>
+        <div style="font-size:0.88rem;line-height:1.7;color:rgba(255,255,255,0.5);">The safety monitor reads from an abstracted sensor interface — the same interface used by the simulator. This means the entire safety logic can be developed, unit-tested, and validated before any physical hardware is connected. Swapping the DAQ board — or adding a new bench type — requires only a new driver implementation, not changes to the safety logic itself.</div>
+      </div>
+
+    </div>
+    <div class="fade-in" style="padding:1.25rem 1.5rem;background:var(--navy-light);border-radius:var(--radius);border:1px solid var(--border);font-family:var(--mono);font-size:0.78rem;color:rgba(255,255,255,0.4);line-height:1.7;">
+      <strong style="color:var(--teal);font-weight:500;">Responsibility boundary:</strong> BenchVision's safety layer is advisory software — it enforces configured limits and signals alarms. Hardware safety (pressure relief valves, physical interlocks, E-stop relay) remains the responsibility of the bench builder. Software limits are a second line of defence, not a substitute for hardware safety engineering.
+    </div>
+  </div>
+</section>
+
+<!-- ── ROADMAP ────────────────────────────────────────────────────────────── -->
+<section id="roadmap">
+  <div class="section-inner">
+    <div class="fade-in">
+      <p class="section-label">How it gets built</p>
+      <h2 class="section-heading" style="color:#fff;">Ten milestones, <em style="color:var(--teal);">four phases</em></h2>
+      <p class="section-body">Each milestone produces something that runs and can be demonstrated. No milestone depends on an unfinished predecessor. The bench hardware is not needed until Milestone 9 — the entire software stack is built and proven on the simulator first.</p>
+    </div>
+
+    <div class="phase-grid fade-in">
+
+      <div class="phase-col">
+        <div class="phase-label">Phase 1 — Foundation</div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M1</span>
+            <span class="milestone-name">Sensor simulator</span>
+            <span class="milestone-status" id="ms1"></span>
+          </div>
+          <div class="milestone-hrs">4–8 hrs</div>
+          <div class="milestone-detail-text">Realistic fake sensor data — pressure ramps, noise, fault injection. Enables all software development without physical hardware present.</div>
+        </div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M2</span>
+            <span class="milestone-name">Acquisition &amp; scaling</span>
+            <span class="milestone-status" id="ms2"></span>
+          </div>
+          <div class="milestone-hrs">6–12 hrs</div>
+          <div class="milestone-detail-text">DAQ read loop and linear scaling from raw signal to engineering units. Unit-tested. Console output verification against known inputs.</div>
+        </div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M3</span>
+            <span class="milestone-name">Live display</span>
+            <span class="milestone-status" id="ms3"></span>
+          </div>
+          <div class="milestone-hrs">10–20 hrs</div>
+          <div class="milestone-detail-text">PyQt5 desktop window with numeric indicators and a PyQtGraph live scrolling chart. Read-only display at 10 Hz — the first thing Devon can see and react to.</div>
+        </div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M4</span>
+            <span class="milestone-name">Data logging</span>
+            <span class="milestone-status" id="ms4"></span>
+          </div>
+          <div class="milestone-hrs">6–10 hrs</div>
+          <div class="milestone-detail-text">Asynchronous CSV logger in its own thread. Timestamped records of all channels. File management and verification against known data.</div>
+        </div>
+      </div>
+
+      <div class="phase-col">
+        <div class="phase-label">Phase 2 — Core</div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M5</span>
+            <span class="milestone-name">State machine</span>
+            <span class="milestone-status" id="ms5"></span>
+          </div>
+          <div class="milestone-hrs">16–28 hrs</div>
+          <div class="milestone-detail-text">Full test sequence: Idle → Initialise → Ramp Up → Hold → Ramp Down → Shutdown → Report → Fault. Start/Stop wired to HMI. Timer-based transitions.</div>
+        </div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M6</span>
+            <span class="milestone-name">PID control</span>
+            <span class="milestone-status" id="ms6"></span>
+          </div>
+          <div class="milestone-hrs">12–24 hrs</div>
+          <div class="milestone-detail-text">PID class with anti-windup. Simulated valve output. Setpoint tracking during ramps. Hold pressure maintenance. Gains tunable via config file.</div>
+        </div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M7</span>
+            <span class="milestone-name">Safety logic</span>
+            <span class="milestone-status" id="ms7"></span>
+          </div>
+          <div class="milestone-hrs">16–30 hrs</div>
+          <div class="milestone-detail-text">Dedicated safety thread. YAML alarm limits. Multi-level alarm system with latching and hysteresis. E-stop handling. Full fault logging with sensor snapshot.</div>
+        </div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M8</span>
+            <span class="milestone-name">Reporting</span>
+            <span class="milestone-status" id="ms8"></span>
+          </div>
+          <div class="milestone-hrs">10–20 hrs</div>
+          <div class="milestone-detail-text">PDF test certificate generation. SQLite test register. Pass/fail assessment. CSV export. Full traceability — calibration references, operator, timestamp.</div>
+        </div>
+      </div>
+
+      <div class="phase-col">
+        <div class="phase-label">Phase 3 — Integration</div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M9</span>
+            <span class="milestone-name">Hardware integration</span>
+            <span class="milestone-status" id="ms9"></span>
+          </div>
+          <div class="milestone-hrs">20–40 hrs</div>
+          <div class="milestone-detail-text">Replace simulator with real DAQ hardware. Commission all sensor channels against calibrated references. PID tuned on real hydraulic circuit at low pressure first.</div>
+        </div>
+        <div class="milestone" onclick="toggleMilestone(this)">
+          <div class="milestone-header">
+            <span class="milestone-id">M10</span>
+            <span class="milestone-name">Validation</span>
+            <span class="milestone-status" id="ms10"></span>
+          </div>
+          <div class="milestone-hrs">16–30 hrs</div>
+          <div class="milestone-detail-text">Full test sequences against reference components. Witnessed safety and interlock sign-off. All alarm conditions tested. Git release tag. Documentation complete.</div>
+        </div>
+      </div>
+
+      <div class="phase-col">
+        <div class="phase-label">Phase 4 — Launch</div>
+        <div style="padding: 1.5rem 0; display:flex; flex-direction:column; gap:1rem;">
+          <div>
+            <div style="font-family:var(--mono);font-size:0.68rem;color:rgba(255,255,255,0.3);margin-bottom:0.4rem;">Target</div>
+            <div style="font-family:var(--serif);font-size:1.8rem;font-weight:300;color:#fff;font-style:italic;letter-spacing:-0.02em;">End of 2026</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:0.68rem;color:rgba(255,255,255,0.3);margin-bottom:0.4rem;">Delivery</div>
+            <div style="font-size:0.82rem;color:rgba(255,255,255,0.5);line-height:1.6;">One bench type, fully commissioned, safety signed off, operator trained.</div>
+          </div>
+          <div>
+            <div style="font-family:var(--mono);font-size:0.68rem;color:rgba(255,255,255,0.3);margin-bottom:0.4rem;">Then</div>
+            <div style="font-size:0.82rem;color:rgba(255,255,255,0.5);line-height:1.6;">Product to market — South Africa and internationally.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="roadmap-total fade-in">
+      <div class="roadmap-total-item">
+        <span class="roadmap-total-val">220–406 hrs</span>
+        <span class="roadmap-total-label">Total estimated effort</span>
+      </div>
+      <div class="roadmap-total-item">
+        <span class="roadmap-total-val">~313 hrs</span>
+        <span class="roadmap-total-label">Midpoint estimate</span>
+      </div>
+      <div class="roadmap-total-item">
+        <span class="roadmap-total-val">9–18 months</span>
+        <span class="roadmap-total-label">At 5–8 hrs/week part-time</span>
+      </div>
+      <div class="roadmap-total-item">
+        <span class="roadmap-total-val">Python 3.11</span>
+        <span class="roadmap-total-label">Open-source — no licence fees</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── MODULAR ────────────────────────────────────────────────────────────── -->
+<section id="modular">
+  <div class="section-inner">
+    <div class="fade-in">
+      <p class="section-label">Design principle</p>
+      <h2 class="section-heading">Modular by design, <em>safe by default</em></h2>
+      <p class="section-body">Every module has a single responsibility. Each can be tested independently. The architecture is designed to adapt to any bench configuration — this installation is the first of many.</p>
+    </div>
+    <div class="modular-grid fade-in">
+      <div class="modular-card">
+        <div class="modular-card-num">01 — Acquisition</div>
+        <div class="modular-card-name">Sensor-agnostic reader</div>
+        <div class="modular-card-body">The acquisition module works with any DAQ hardware or protocol — NI-DAQmx, Modbus, serial. Swap the driver, keep everything else. The simulator and real hardware share the same interface.</div>
+      </div>
+      <div class="modular-card">
+        <div class="modular-card-num">02 — Safety</div>
+        <div class="modular-card-name">Independent thread</div>
+        <div class="modular-card-body">Safety logic runs in its own thread at the highest priority. A bug in the test sequence cannot prevent the safety monitor from firing. Hardware safety always comes first — software is the second line of defence.</div>
+      </div>
+      <div class="modular-card">
+        <div class="modular-card-num">03 — Sequences</div>
+        <div class="modular-card-name">YAML-defined tests</div>
+        <div class="modular-card-body">Test procedures are defined in configuration files, not hardcoded. Adding a new test type means creating a new YAML file — no code changes required. The state machine reads the definition and executes it.</div>
+      </div>
+      <div class="modular-card">
+        <div class="modular-card-num">04 — Reporting</div>
+        <div class="modular-card-name">Templated certificates</div>
+        <div class="modular-card-body">Certificate layout, company branding, and content are fully templated. Different bench types produce different certificates with no changes to the core logging or analysis code.</div>
+      </div>
+    </div>
+    <div class="modular-principle fade-in">
+      <div class="modular-principle-icon">
+        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <p class="modular-principle-text">"Complete something every session. A working sensor simulator is more valuable than half a complete system. Modular build means you always know exactly where you are."</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── PARTNERSHIP ────────────────────────────────────────────────────────── -->
+<section id="partnership">
+  <div class="section-inner">
+    <div class="fade-in">
+      <p class="section-label">The arrangement</p>
+      <h2 class="section-heading">A founding <em>partnership</em></h2>
+      <p class="section-body">Two people who trust each other, with clear terms that protect both parties and the relationship. Clarity is not a sign of distrust — it is a sign of respect.</p>
+    </div>
+
+    <div class="partnership-grid fade-in">
+      <div class="partner-card pixie">
+        <div class="partner-name">Design Develop Host — Pixie</div>
+        <div class="partner-item"><span class="partner-dot"></span>Full software design and architecture</div>
+        <div class="partner-item"><span class="partner-dot"></span>All development across 10 milestones</div>
+        <div class="partner-item"><span class="partner-dot"></span>System integration and commissioning</div>
+        <div class="partner-item"><span class="partner-dot"></span>All software documentation</div>
+        <div class="partner-item"><span class="partner-dot"></span>Owns the IP — takes product to market</div>
+      </div>
+      <div class="partner-card devon">
+        <div class="partner-name">Specialised Steering — Devon Abbot</div>
+        <div class="partner-item"><span class="partner-dot"></span>Test bench hardware design and build</div>
+        <div class="partner-item"><span class="partner-dot"></span>All hydraulic components</div>
+        <div class="partner-item"><span class="partner-dot"></span>Computer equipment for installation</div>
+        <div class="partner-item"><span class="partner-dot"></span>Domain expertise in hydraulic testing</div>
+        <div class="partner-item"><span class="partner-dot"></span>Founding reference installation</div>
+      </div>
+    </div>
+
+    <div class="revenue-section fade-in">
+      <h3 class="revenue-heading">Mutual revenue share — <em>both parties earn</em></h3>
+      <p class="revenue-body">The software and the bench are strongest as a combined offering. Neither party subsidises the other — both earn from each other's strengths.</p>
+      <div class="revenue-grid">
+        <div class="revenue-card">
+          <div class="revenue-card-label">When Devon sells a bench + software</div>
+          <div class="revenue-card-scenario">Devon earns commission on the software</div>
+          <div class="revenue-card-detail">Devon receives full bench fee. Pixie receives software licence fee less Devon's agreed commission. Devon's bench offering is strengthened by proven software.</div>
+        </div>
+        <div class="revenue-card">
+          <div class="revenue-card-label">When Pixie sells software + bench needed</div>
+          <div class="revenue-card-scenario">Pixie earns commission on the bench</div>
+          <div class="revenue-card-detail">Devon builds and receives full bench fee less Pixie's agreed referral commission. Pixie receives software fee plus bench commission. Pixie's software offering is strengthened by a proven bench builder.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PROGRESS ───────────────────────────────────────────────────────────── -->
+<section id="progress">
+  <div class="section-inner">
+    <div class="fade-in">
+      <p class="section-label">Where we are</p>
+      <h2 class="section-heading" style="color:#fff;">Project <em style="color:var(--teal);">progress</em></h2>
+      <p class="section-body">Updated as each phase and milestone is completed. This page is the single source of truth for the project's progress.</p>
+    </div>
+
+    <div class="progress-phases fade-in">
+      <div class="progress-phase">
+        <div class="progress-phase-name">Discovery &amp; Specification</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:65%;background:var(--teal);"></div>
+        </div>
+        <div class="progress-pct">65%</div>
+      </div>
+      <div class="progress-phase">
+        <div class="progress-phase-name">Design &amp; Wireframing</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:0%;background:#a78bfa;"></div>
+        </div>
+        <div class="progress-pct">0%</div>
+      </div>
+      <div class="progress-phase">
+        <div class="progress-phase-name">Foundation Build (M1–M4)</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:0%;background:var(--teal);"></div>
+        </div>
+        <div class="progress-pct">0%</div>
+      </div>
+      <div class="progress-phase">
+        <div class="progress-phase-name">Core Build (M5–M8)</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:0%;background:#a78bfa;"></div>
+        </div>
+        <div class="progress-pct">0%</div>
+      </div>
+      <div class="progress-phase">
+        <div class="progress-phase-name">Hardware Integration (M9–M10)</div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width:0%;background:#f97316;"></div>
+        </div>
+        <div class="progress-pct">0%</div>
+      </div>
+    </div>
+
+    <div class="progress-note fade-in">
+      <strong>Current status:</strong> Proposal and requirements questionnaire complete. Awaiting discussion with Devon Abbot to agree development arrangement before specification work begins.<br><br>
+      <strong>Next action:</strong> Initial conversation — Pixie and Devon to discuss proposal, Sections 4 and 5 specifically. Confidentiality and development arrangement to be agreed and signed before Milestone 1 begins.
+    </div>
+  </div>
+</section>
+
+<!-- ── FOOTER ─────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-brand">Bench<span>Vision</span></div>
+  <div class="footer-note">Design Develop Host × Specialised Steering (Pty) Ltd — Confidential — 2026</div>
+</footer>
+
+<script>
+function toggleLayer(el) {
+  const detail = el.nextElementSibling;
+  const isOpen = el.classList.contains('open');
+  document.querySelectorAll('.layer-item.open').forEach(i => {
+    i.classList.remove('open');
+    i.nextElementSibling.classList.remove('open');
+  });
+  if (!isOpen) {
+    el.classList.add('open');
+    detail.classList.add('open');
+  }
+}
+
+function toggleMilestone(el) {
+  el.classList.toggle('open');
+}
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('visible'), i * 80);
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

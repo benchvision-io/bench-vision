@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bench-vision — HMI Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --os-bg:#2a2a2e;
+  --win-chrome:#1e1f24;
+  --win-title:#16171b;
+  --panel:#1a1d24;
+  --panel2:#1f2229;
+  --panel3:#242830;
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.12);
+  --teal:#0e8a7a;
+  --teal-light:#13b09e;
+  --teal-faint:rgba(14,138,122,0.15);
+  --teal-glow:rgba(14,138,122,0.3);
+  --navy:#0d1b2a;
+  --red:#c0392b;
+  --red-light:#e74c3c;
+  --red-glow:rgba(192,57,43,0.4);
+  --amber:#e67e22;
+  --amber-faint:rgba(230,126,34,0.15);
+  --green:#27ae60;
+  --green-faint:rgba(39,174,96,0.15);
+  --blue:#2980b9;
+  --text:#e8e6e0;
+  --text2:#9c9a92;
+  --text3:#5a5a56;
+  --font:'DM Sans',sans-serif;
+  --mono:'DM Mono',monospace;
+}
+
+body{
+  font-family:var(--font);
+  background:var(--os-bg);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-start;
+  padding:2rem 1rem 3rem;
+  color:var(--text);
+}
+
+/* ── LABEL ABOVE WINDOW ── */
+.mockup-label{
+  font-family:var(--mono);
+  font-size:0.72rem;
+  color:var(--text3);
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  margin-bottom:0.75rem;
+  align-self:flex-start;
+  max-width:1200px;
+  width:100%;
+}
+
+/* ── DESKTOP WINDOW CHROME ── */
+.window{
+  width:100%;
+  max-width:1200px;
+  background:var(--win-chrome);
+  border-radius:10px;
+  overflow:hidden;
+  box-shadow:0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* Title bar */
+.titlebar{
+  background:var(--win-title);
+  height:36px;
+  display:flex;
+  align-items:center;
+  padding:0 12px;
+  gap:8px;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  user-select:none;
+}
+.titlebar-dots{display:flex;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.close{background:#ff5f57}
+.dot.min{background:#ffbd2e}
+.dot.max{background:#28ca41}
+.titlebar-title{
+  flex:1;text-align:center;
+  font-size:0.78rem;font-weight:500;
+  color:var(--text2);
+  font-family:var(--mono);
+  letter-spacing:0.04em;
+}
+.titlebar-status{
+  font-family:var(--mono);font-size:0.68rem;
+  color:var(--teal-light);
+  display:flex;align-items:center;gap:5px;
+}
+.status-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--teal-light);
+  animation:pulse 2s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 4px var(--teal-glow)}50%{opacity:0.5;box-shadow:none}}
+
+/* Menu bar */
+.menubar{
+  background:var(--win-chrome);
+  height:28px;
+  display:flex;
+  align-items:center;
+  padding:0 12px;
+  gap:0;
+  border-bottom:1px solid var(--border);
+}
+.menu-item{
+  font-size:0.75rem;color:var(--text2);
+  padding:0 10px;height:28px;
+  display:flex;align-items:center;
+  cursor:default;
+  border-radius:4px;
+}
+.menu-item:hover{background:rgba(255,255,255,0.06);color:var(--text)}
+
+/* ── TOP INFO BAR ── */
+.infobar{
+  background:var(--panel);
+  border-bottom:1px solid var(--border);
+  padding:8px 16px;
+  display:grid;
+  grid-template-columns:repeat(5,1fr) auto;
+  gap:1px;
+  align-items:center;
+}
+.info-field{
+  padding:4px 12px;
+  border-right:1px solid var(--border);
+}
+.info-field:last-of-type{border-right:none}
+.info-label{
+  font-family:var(--mono);font-size:0.6rem;
+  color:var(--text3);letter-spacing:0.08em;
+  text-transform:uppercase;margin-bottom:2px;
+}
+.info-value{
+  font-size:0.82rem;font-weight:500;
+  color:var(--text);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;
+}
+.info-value.highlight{color:var(--teal-light)}
+.test-badge{
+  margin-left:16px;
+  background:var(--teal-faint);
+  border:1px solid var(--teal);
+  border-radius:4px;
+  padding:4px 12px;
+  font-family:var(--mono);font-size:0.7rem;
+  color:var(--teal-light);
+  white-space:nowrap;
+  display:flex;align-items:center;gap:6px;
+}
+.rec-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--red-light);
+  animation:pulse-red 1s ease-in-out infinite;
+}
+@keyframes pulse-red{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* ── MAIN LAYOUT ── */
+.main{
+  display:grid;
+  grid-template-columns:220px 1fr 220px;
+  grid-template-rows:1fr auto;
+  gap:1px;
+  background:var(--border);
+  min-height:520px;
+}
+
+/* ── LEFT PANEL — GAUGES ── */
+.gauges-panel{
+  background:var(--panel);
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  grid-row:1/3;
+}
+.panel-heading{
+  font-family:var(--mono);font-size:0.62rem;
+  letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--text3);
+  padding-bottom:6px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:2px;
+}
+
+.gauge{
+  background:var(--panel2);
+  border:1px solid var(--border);
+  border-radius:6px;
+  padding:8px 10px;
+  position:relative;
+  overflow:hidden;
+}
+.gauge::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:2px;
+}
+.gauge.flow::before{background:var(--teal)}
+.gauge.pressure::before{background:var(--blue)}
+.gauge.rpm::before{background:var(--amber)}
+.gauge.temp::before{background:#8e44ad}
+
+.gauge-label{
+  font-family:var(--mono);font-size:0.6rem;
+  color:var(--text3);letter-spacing:0.08em;
+  text-transform:uppercase;margin-bottom:4px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.gauge-channel{
+  font-size:0.55rem;
+  background:rgba(255,255,255,0.06);
+  border-radius:2px;padding:1px 4px;
+}
+.gauge-value-row{
+  display:flex;align-items:baseline;gap:4px;
+}
+.gauge-value{
+  font-family:var(--mono);
+  font-size:1.5rem;font-weight:500;
+  line-height:1;
+}
+.gauge.flow .gauge-value{color:var(--teal-light)}
+.gauge.pressure .gauge-value{color:#5dade2}
+.gauge.rpm .gauge-value{color:var(--amber)}
+.gauge.temp .gauge-value{color:#bb8fce}
+
+.gauge-unit{
+  font-family:var(--mono);font-size:0.7rem;
+  color:var(--text3);
+}
+.gauge-bar-wrap{
+  margin-top:5px;
+  height:3px;
+  background:rgba(255,255,255,0.06);
+  border-radius:2px;overflow:hidden;
+}
+.gauge-bar{
+  height:100%;border-radius:2px;
+  transition:width 0.3s ease;
+}
+.gauge.flow .gauge-bar{background:var(--teal)}
+.gauge.pressure .gauge-bar{background:var(--blue)}
+.gauge.rpm .gauge-bar{background:var(--amber)}
+.gauge.temp .gauge-bar{background:#8e44ad}
+.gauge-range{
+  display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:0.55rem;
+  color:var(--text3);margin-top:2px;
+}
+
+/* ── CENTRE PANEL — GRAPH ── */
+.graph-panel{
+  background:var(--panel);
+  display:flex;
+  flex-direction:column;
+}
+.graph-toolbar{
+  padding:8px 12px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.graph-title{
+  font-family:var(--mono);font-size:0.68rem;
+  color:var(--text2);letter-spacing:0.06em;
+  flex:1;
+}
+.graph-tag{
+  font-family:var(--mono);font-size:0.62rem;
+  padding:2px 8px;border-radius:3px;
+  background:var(--teal-faint);
+  color:var(--teal-light);
+  border:1px solid rgba(14,138,122,0.3);
+}
+.graph-area{
+  flex:1;
+  position:relative;
+  padding:16px 48px 36px 52px;
+}
+
+/* SVG graph */
+.graph-svg{width:100%;height:100%;min-height:300px}
+
+/* ── CAMERA PANEL ── */
+.camera-panel{
+  background:var(--panel);
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  grid-row:1/2;
+}
+.camera-feed{
+  background:#0a0a0c;
+  border:1px solid var(--border);
+  border-radius:6px;
+  flex:1;
+  min-height:160px;
+  position:relative;
+  overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+}
+.camera-grid{
+  position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(14,138,122,0.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(14,138,122,0.04) 1px,transparent 1px);
+  background-size:20px 20px;
+}
+.camera-crosshair{
+  position:absolute;
+  width:40px;height:40px;
+  opacity:0.3;
+}
+.camera-crosshair::before,
+.camera-crosshair::after{
+  content:'';position:absolute;
+  background:var(--teal-light);
+}
+.camera-crosshair::before{top:50%;left:0;right:0;height:1px;transform:translateY(-50%)}
+.camera-crosshair::after{left:50%;top:0;bottom:0;width:1px;transform:translateX(-50%)}
+.camera-label-bar{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(0,0,0,0.6);
+  padding:4px 8px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.cam-rec{
+  display:flex;align-items:center;gap:4px;
+  font-family:var(--mono);font-size:0.62rem;
+  color:var(--red-light);font-weight:500;
+}
+.cam-time{
+  font-family:var(--mono);font-size:0.62rem;
+  color:var(--text2);
+}
+.camera-pump-label{
+  position:absolute;top:6px;left:6px;
+  font-family:var(--mono);font-size:0.58rem;
+  color:rgba(255,255,255,0.35);
+  background:rgba(0,0,0,0.4);
+  padding:2px 5px;border-radius:2px;
+}
+
+/* Pump silhouette suggestion */
+.pump-silhouette{
+  opacity:0.08;
+}
+
+/* Stats below camera */
+.cam-stats{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:6px;
+}
+.cam-stat{
+  background:var(--panel2);
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:6px 8px;
+}
+.cam-stat-label{
+  font-family:var(--mono);font-size:0.58rem;
+  color:var(--text3);text-transform:uppercase;
+  letter-spacing:0.06em;margin-bottom:2px;
+}
+.cam-stat-value{
+  font-family:var(--mono);font-size:0.85rem;
+  font-weight:500;color:var(--text);
+}
+
+/* ── CONTROL PANEL — RIGHT BOTTOM ── */
+.control-panel{
+  background:var(--panel);
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  grid-row:2/3;
+  grid-column:3/4;
+}
+
+/* ── BOTTOM BAR — CONTROLS ── */
+.bottom-bar{
+  background:var(--panel);
+  border-top:1px solid var(--border);
+  padding:10px 16px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  grid-column:1/3;
+}
+
+.btn{
+  border:none;cursor:pointer;
+  font-family:var(--mono);font-weight:500;
+  border-radius:5px;
+  display:flex;align-items:center;gap:6px;
+  transition:all 0.15s;
+  white-space:nowrap;
+}
+.btn-start{
+  background:var(--teal);
+  color:#fff;
+  padding:8px 20px;
+  font-size:0.78rem;
+  letter-spacing:0.04em;
+  box-shadow:0 0 12px var(--teal-glow);
+}
+.btn-start:hover{background:var(--teal-light);box-shadow:0 0 20px var(--teal-glow)}
+.btn-stop{
+  background:rgba(255,255,255,0.06);
+  border:1px solid var(--border2);
+  color:var(--text2);
+  padding:8px 20px;
+  font-size:0.78rem;
+  letter-spacing:0.04em;
+}
+.btn-stop:hover{background:rgba(255,255,255,0.1);color:var(--text)}
+.btn-save{
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--border);
+  color:var(--text3);
+  padding:8px 14px;
+  font-size:0.73rem;
+}
+.btn-save:hover{color:var(--text2)}
+
+.bottom-status{
+  flex:1;
+  display:flex;align-items:center;gap:16px;
+}
+.status-chip{
+  font-family:var(--mono);font-size:0.65rem;
+  display:flex;align-items:center;gap:5px;
+  color:var(--text3);
+}
+.chip-dot{width:6px;height:6px;border-radius:50%}
+.chip-dot.ok{background:var(--green)}
+.chip-dot.rec{background:var(--red-light);animation:pulse-red 1s ease-in-out infinite}
+.chip-dot.idle{background:var(--text3)}
+
+/* ── E-STOP ── */
+.estop-wrap{
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.estop-btn{
+  background:var(--red);
+  border:3px solid #e74c3c;
+  border-radius:8px;
+  color:#fff;
+  padding:10px 18px;
+  cursor:pointer;
+  font-family:var(--mono);
+  font-weight:500;
+  font-size:0.75rem;
+  letter-spacing:0.06em;
+  text-align:center;
+  line-height:1.3;
+  box-shadow:0 0 16px var(--red-glow), inset 0 1px 0 rgba(255,255,255,0.1);
+  transition:all 0.1s;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.estop-btn:hover{
+  background:var(--red-light);
+  box-shadow:0 0 28px var(--red-glow), inset 0 1px 0 rgba(255,255,255,0.15);
+  transform:scale(1.02);
+}
+.estop-btn:active{transform:scale(0.97)}
+.estop-title{font-size:0.85rem;font-weight:600;letter-spacing:0.1em}
+.estop-sub{font-size:0.58rem;color:rgba(255,255,255,0.65);font-weight:400;letter-spacing:0.04em}
+.estop-note{
+  font-family:var(--mono);font-size:0.58rem;
+  color:var(--text3);text-align:center;
+  max-width:120px;line-height:1.4;
+}
+
+/* ── ALARM STRIP ── */
+.alarm-strip{
+  background:var(--amber-faint);
+  border:1px solid rgba(230,126,34,0.3);
+  border-radius:4px;
+  padding:5px 10px;
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:0.62rem;
+  color:var(--amber);
+}
+.alarm-icon{font-size:0.75rem}
+
+/* ── STATUSBAR ── */
+.statusbar{
+  background:var(--win-title);
+  border-top:1px solid var(--border);
+  padding:4px 16px;
+  display:flex;align-items:center;gap:20px;
+}
+.sb-item{
+  font-family:var(--mono);font-size:0.62rem;
+  color:var(--text3);
+  display:flex;align-items:center;gap:4px;
+}
+.sb-item.active{color:var(--teal-light)}
+.sb-sep{color:var(--border2)}
+
+/* ── ANNOTATION CALLOUTS ── */
+.annotations{
+  max-width:1200px;width:100%;
+  margin-top:2rem;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:12px;
+}
+.ann{
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:12px 14px;
+}
+.ann-title{
+  font-family:var(--mono);font-size:0.68rem;
+  color:var(--teal-light);letter-spacing:0.06em;
+  margin-bottom:4px;
+  display:flex;align-items:center;gap:6px;
+}
+.ann-dot{width:6px;height:6px;border-radius:50%;background:var(--teal-light);flex-shrink:0}
+.ann-body{
+  font-size:0.78rem;color:var(--text2);line-height:1.6;
+}
+
+/* licence tag at bottom */
+.licence-note{
+  max-width:1200px;width:100%;
+  margin-top:1.5rem;
+  padding:10px 16px;
+  background:rgba(14,138,122,0.06);
+  border:1px solid rgba(14,138,122,0.2);
+  border-radius:6px;
+  font-family:var(--mono);font-size:0.68rem;
+  color:var(--text3);
+  display:flex;align-items:center;gap:8px;
+}
+.licence-note span{color:var(--teal-light)}
+</style>
+</head>
+<body>
+
+<div class="mockup-label" style="display:flex;align-items:center;justify-content:space-between">
+  <span>bench-vision — HMI reference mockup · Installation #1 · Pump test bench configuration · © Design Develop Host 2026</span>
+  <a href="/" style="font-family:var(--mono);font-size:0.68rem;color:rgba(255,255,255,0.25);text-decoration:none;letter-spacing:0.06em;white-space:nowrap;margin-left:2rem">← Portal</a>
+</div>
+
+<!-- ── DESKTOP WINDOW ── -->
+<div class="window">
+
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="titlebar-dots">
+      <div class="dot close"></div>
+      <div class="dot min"></div>
+      <div class="dot max"></div>
+    </div>
+    <div class="titlebar-title">bench-vision — Pump Test Bench · v1.0 · Installation #1</div>
+    <div class="titlebar-status">
+      <div class="status-dot"></div>
+      CONNECTED · COM3
+    </div>
+  </div>
+
+  <!-- Menu bar -->
+  <div class="menubar">
+    <div class="menu-item">File</div>
+    <div class="menu-item">Test</div>
+    <div class="menu-item">Configuration</div>
+    <div class="menu-item">Reports</div>
+    <div class="menu-item">Calibration</div>
+    <div class="menu-item">Help</div>
+  </div>
+
+  <!-- Info bar -->
+  <div class="infobar">
+    <div class="info-field">
+      <div class="info-label">Customer</div>
+      <div class="info-value">Hydraulics Int. (Pty) Ltd</div>
+    </div>
+    <div class="info-field">
+      <div class="info-label">Job number</div>
+      <div class="info-value highlight">JB-2026-0147</div>
+    </div>
+    <div class="info-field">
+      <div class="info-label">Component</div>
+      <div class="info-value">HPV160 Piston Pump</div>
+    </div>
+    <div class="info-field">
+      <div class="info-label">Description</div>
+      <div class="info-value">HPV160 Piston Pump</div>
+    </div>
+    <div class="info-field">
+      <div class="info-label">Tested by</div>
+      <div class="info-value">D. Abbot</div>
+    </div>
+    <div class="test-badge">
+      <div class="rec-dot"></div>
+      RECORDING · 00:04:32
+    </div>
+  </div>
+
+  <!-- Main area -->
+  <div class="main">
+
+    <!-- LEFT: Gauges -->
+    <div class="gauges-panel">
+      <div class="panel-heading">Live readings</div>
+
+      <div class="gauge flow">
+        <div class="gauge-label">Flow 1 <span class="gauge-channel">CH·0</span></div>
+        <div class="gauge-value-row">
+          <div class="gauge-value">82.4</div>
+          <div class="gauge-unit">L/min</div>
+        </div>
+        <div class="gauge-bar-wrap"><div class="gauge-bar" style="width:55%"></div></div>
+        <div class="gauge-range"><span>0</span><span>150</span></div>
+      </div>
+
+      <div class="gauge flow">
+        <div class="gauge-label">Flow 2 <span class="gauge-channel">CH·1</span></div>
+        <div class="gauge-value-row">
+          <div class="gauge-value">79.1</div>
+          <div class="gauge-unit">L/min</div>
+        </div>
+        <div class="gauge-bar-wrap"><div class="gauge-bar" style="width:53%"></div></div>
+        <div class="gauge-range"><span>0</span><span>150</span></div>
+      </div>
+
+      <div class="gauge pressure">
+        <div class="gauge-label">Pressure 1 <span class="gauge-channel">CH·2</span></div>
+        <div class="gauge-value-row">
+          <div class="gauge-value">342</div>
+          <div class="gauge-unit">bar</div>
+        </div>
+        <div class="gauge-bar-wrap"><div class="gauge-bar" style="width:49%"></div></div>
+        <div class="gauge-range"><span>0</span><span>700</span></div>
+      </div>
+
+      <div class="gauge pressure">
+        <div class="gauge-label">Pressure 2 <span class="gauge-channel">CH·3</span></div>
+        <div class="gauge-value-row">
+          <div class="gauge-value">318</div>
+          <div class="gauge-unit">bar</div>
+        </div>
+        <div class="gauge-bar-wrap"><div class="gauge-bar" style="width:45%"></div></div>
+        <div class="gauge-range"><span>0</span><span>700</span></div>
+      </div>
+
+      <div class="gauge rpm">
+        <div class="gauge-label">Shaft RPM <span class="gauge-channel">CH·4</span></div>
+        <div class="gauge-value-row">
+          <div class="gauge-value">1450</div>
+          <div class="gauge-unit">rpm</div>
+        </div>
+        <div class="gauge-bar-wrap"><div class="gauge-bar" style="width:48%"></div></div>
+        <div class="gauge-range"><span>0</span><span>3000</span></div>
+      </div>
+
+      <div class="gauge temp">
+        <div class="gauge-label">Oil temp <span class="gauge-channel">CH·5</span></div>
+        <div class="gauge-value-row">
+          <div class="gauge-value">52</div>
+          <div class="gauge-unit">°C</div>
+        </div>
+        <div class="gauge-bar-wrap"><div class="gauge-bar" style="width:52%"></div></div>
+        <div class="gauge-range"><span>0</span><span>100</span></div>
+      </div>
+
+      <!-- Alarm strip -->
+      <div class="alarm-strip">
+        <span class="alarm-icon">⚠</span>
+        Oil temp approaching limit
+      </div>
+    </div>
+
+    <!-- CENTRE: Graph -->
+    <div class="graph-panel">
+      <div class="graph-toolbar">
+        <div class="graph-title">FLOW (L/min) vs PRESSURE (bar) — pump performance curve</div>
+        <div class="graph-tag">LIVE · 47 pts</div>
+      </div>
+      <div class="graph-area">
+        <svg class="graph-svg" viewBox="0 0 560 300" xmlns="http://www.w3.org/2000/svg">
+          <!-- Grid -->
+          <defs>
+            <pattern id="grid" width="56" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 56 0 L 0 0 0 30" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            </pattern>
+            <!-- Limit zone gradient -->
+            <linearGradient id="limitGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="rgba(39,174,96,0.08)"/>
+              <stop offset="100%" stop-color="rgba(39,174,96,0.02)"/>
+            </linearGradient>
+          </defs>
+          <rect width="560" height="300" fill="url(#grid)"/>
+
+          <!-- Axes -->
+          <line x1="0" y1="0" x2="0" y2="300" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+          <line x1="0" y1="300" x2="560" y2="300" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+
+          <!-- Y axis labels (Flow L/min) -->
+          <text x="-6" y="4" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="end">500</text>
+          <text x="-6" y="64" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="end">400</text>
+          <text x="-6" y="124" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="end">300</text>
+          <text x="-6" y="184" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="end">200</text>
+          <text x="-6" y="244" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="end">100</text>
+          <text x="-6" y="300" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="end">0</text>
+
+          <!-- X axis labels (Pressure bar) -->
+          <text x="0" y="314" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="middle">0</text>
+          <text x="112" y="314" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="middle">140</text>
+          <text x="224" y="314" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="middle">280</text>
+          <text x="336" y="314" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="middle">420</text>
+          <text x="448" y="314" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="middle">560</text>
+          <text x="560" y="314" fill="rgba(255,255,255,0.3)" font-size="9" font-family="DM Mono,monospace" text-anchor="middle">700</text>
+
+          <!-- Axis labels -->
+          <text x="-28" y="155" fill="rgba(255,255,255,0.2)" font-size="8" font-family="DM Mono,monospace" text-anchor="middle" transform="rotate(-90,-28,155)">FLOW (L/min)</text>
+          <text x="280" y="328" fill="rgba(255,255,255,0.2)" font-size="8" font-family="DM Mono,monospace" text-anchor="middle">PRESSURE (bar)</text>
+
+          <!-- Spec limit zone (pass band) -->
+          <path d="M 0,48 L 560,108 L 560,132 L 0,72 Z" fill="url(#limitGrad)"/>
+          <!-- Upper limit line -->
+          <path d="M 0,48 L 560,108" fill="none" stroke="rgba(39,174,96,0.4)" stroke-width="1" stroke-dasharray="4 3"/>
+          <!-- Lower limit line -->
+          <path d="M 0,72 L 560,132" fill="none" stroke="rgba(39,174,96,0.4)" stroke-width="1" stroke-dasharray="4 3"/>
+          <text x="490" y="100" fill="rgba(39,174,96,0.5)" font-size="8" font-family="DM Mono,monospace">SPEC LIMITS</text>
+
+          <!-- Torque reference curve (dashed) -->
+          <path d="M 0,290 C 80,270 160,230 240,180 S 400,100 480,70 S 530,55 560,50"
+            fill="none" stroke="rgba(187,143,206,0.35)" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="530" y="45" fill="rgba(187,143,206,0.4)" font-size="8" font-family="DM Mono,monospace" text-anchor="end">TORQUE</text>
+
+          <!-- Live data curve — teal, building from left -->
+          <path d="M 0,60 C 30,61 60,63 90,66 S 150,72 180,78 S 240,90 280,100 S 340,118 370,132 S 420,158 450,178 S 490,210 510,235"
+            fill="none" stroke="#13b09e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <!-- Data points along the curve -->
+          <circle cx="0"   cy="60"  r="3" fill="#13b09e" opacity="0.7"/>
+          <circle cx="90"  cy="66"  r="3" fill="#13b09e" opacity="0.7"/>
+          <circle cx="180" cy="78"  r="3" fill="#13b09e" opacity="0.7"/>
+          <circle cx="280" cy="100" r="3" fill="#13b09e" opacity="0.7"/>
+          <circle cx="370" cy="132" r="3" fill="#13b09e" opacity="0.7"/>
+          <circle cx="450" cy="178" r="3" fill="#13b09e" opacity="0.7"/>
+
+          <!-- Live cursor — current point -->
+          <circle cx="510" cy="235" r="5" fill="#13b09e"/>
+          <circle cx="510" cy="235" r="9" fill="none" stroke="#13b09e" stroke-width="1" opacity="0.4">
+            <animate attributeName="r" values="5;12;5" dur="2s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.4;0;0.4" dur="2s" repeatCount="indefinite"/>
+          </circle>
+
+          <!-- Crosshair at cursor -->
+          <line x1="510" y1="0" x2="510" y2="300" stroke="rgba(19,176,158,0.15)" stroke-width="1"/>
+          <line x1="0" y1="235" x2="560" y2="235" stroke="rgba(19,176,158,0.15)" stroke-width="1"/>
+
+          <!-- Cursor label -->
+          <rect x="514" y="218" width="44" height="28" rx="3" fill="rgba(14,138,122,0.85)"/>
+          <text x="536" y="229" fill="#fff" font-size="8" font-family="DM Mono,monospace" text-anchor="middle" font-weight="500">342 bar</text>
+          <text x="536" y="240" fill="rgba(255,255,255,0.7)" font-size="7" font-family="DM Mono,monospace" text-anchor="middle">82.4 L/m</text>
+
+          <!-- Legend -->
+          <line x1="8" y1="16" x2="32" y2="16" stroke="#13b09e" stroke-width="2.5"/>
+          <circle cx="20" cy="16" r="3" fill="#13b09e"/>
+          <text x="36" y="20" fill="rgba(255,255,255,0.5)" font-size="8" font-family="DM Mono,monospace">Live data</text>
+
+          <line x1="100" y1="16" x2="124" y2="16" stroke="rgba(187,143,206,0.5)" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="128" y="20" fill="rgba(255,255,255,0.3)" font-size="8" font-family="DM Mono,monospace">Torque ref</text>
+
+          <line x1="200" y1="16" x2="224" y2="16" stroke="rgba(39,174,96,0.5)" stroke-width="1" stroke-dasharray="4 3"/>
+          <text x="228" y="20" fill="rgba(255,255,255,0.3)" font-size="8" font-family="DM Mono,monospace">Spec limits</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- RIGHT: Camera -->
+    <div class="camera-panel">
+      <div class="panel-heading">Camera feed — pump</div>
+
+      <div class="camera-feed">
+        <div class="camera-grid"></div>
+        <div class="camera-crosshair"></div>
+        <!-- Simple pump silhouette suggestion -->
+        <svg width="80" height="60" viewBox="0 0 80 60" class="pump-silhouette">
+          <rect x="10" y="20" width="40" height="28" rx="4" fill="#13b09e"/>
+          <circle cx="50" cy="34" r="16" fill="#0e8a7a"/>
+          <rect x="0" y="28" width="14" height="5" rx="2" fill="#13b09e"/>
+          <rect x="62" y="28" width="14" height="5" rx="2" fill="#13b09e"/>
+          <rect x="28" y="8" width="8" height="14" rx="2" fill="#0e8a7a"/>
+        </svg>
+        <div class="camera-pump-label">PUMP VIEW · CAM 1</div>
+        <div class="camera-label-bar">
+          <div class="cam-rec"><div class="rec-dot" style="width:5px;height:5px"></div> REC</div>
+          <div class="cam-time">00:04:32</div>
+        </div>
+      </div>
+
+      <div class="cam-stats">
+        <div class="cam-stat">
+          <div class="cam-stat-label">State</div>
+          <div class="cam-stat-value" style="color:var(--teal-light);font-size:0.75rem">RAMP UP</div>
+        </div>
+        <div class="cam-stat">
+          <div class="cam-stat-label">Points</div>
+          <div class="cam-stat-value">47</div>
+        </div>
+        <div class="cam-stat">
+          <div class="cam-stat-label">Elapsed</div>
+          <div class="cam-stat-value">04:32</div>
+        </div>
+        <div class="cam-stat">
+          <div class="cam-stat-label">Samples/s</div>
+          <div class="cam-stat-value">10</div>
+        </div>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <!-- E-STOP -->
+      <div class="estop-wrap">
+        <button class="estop-btn">
+          <div class="estop-title">⬛ E-STOP</div>
+          <div class="estop-sub">Halt all systems immediately</div>
+        </button>
+        <div class="estop-note">Stops test · closes valves · kills pump · saves data</div>
+      </div>
+    </div>
+
+    <!-- BOTTOM BAR: Controls -->
+    <div class="bottom-bar">
+      <button class="btn btn-start">▶ Start test</button>
+      <button class="btn btn-stop">■ Stop &amp; save</button>
+      <button class="btn btn-save">↩ Run again</button>
+      <button class="btn btn-save">🖨 Print report</button>
+
+      <div class="bottom-status">
+        <div class="status-chip">
+          <div class="chip-dot rec"></div>
+          Recording
+        </div>
+        <div class="status-chip">
+          <div class="chip-dot ok"></div>
+          DAQ connected
+        </div>
+        <div class="status-chip">
+          <div class="chip-dot ok"></div>
+          Camera active
+        </div>
+        <div class="status-chip">
+          <div class="chip-dot ok"></div>
+          All sensors in range
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end main -->
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <div class="sb-item active">● bench-vision v1.0</div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item">Installation #1 — Specialised Steering (Pty) Ltd</div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item active">Pump bench configuration</div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item">Session: JB-2026-0147</div>
+    <div class="sb-sep">|</div>
+    <div class="sb-item" style="margin-left:auto">© Design Develop Host 2026</div>
+  </div>
+
+</div><!-- end window -->
+
+<!-- Annotation callouts -->
+<div class="annotations">
+  <div class="ann">
+    <div class="ann-title"><div class="ann-dot"></div>Live gauges</div>
+    <div class="ann-body">All sensor channels displayed in real time. Each gauge shows a live bar, value, unit, and configurable range. Colour-coded by sensor type. Additional channels added per bench configuration.</div>
+  </div>
+  <div class="ann">
+    <div class="ann-title"><div class="ann-dot"></div>Performance curve</div>
+    <div class="ann-body">Flow vs pressure plotted live as the test runs. Specification limit bands shown in green. Cursor tracks the current reading. Torque reference overlay available. Zoom and pan after test completes.</div>
+  </div>
+  <div class="ann">
+    <div class="ann-title"><div class="ann-dot"></div>Camera feed</div>
+    <div class="ann-body">Live view of the pump under test. Recording starts and stops with the test session. Video is time-synchronised with sensor data and embedded in the final PDF report.</div>
+  </div>
+  <div class="ann">
+    <div class="ann-title"><div class="ann-dot" style="background:var(--red-light)"></div>E-stop</div>
+    <div class="ann-body">Emergency stop halts all systems immediately — closes valves, kills the pump motor, and saves all recorded data to that point. Clearly labelled with the exact consequence so any operator understands it instantly.</div>
+  </div>
+  <div class="ann">
+    <div class="ann-title"><div class="ann-dot"></div>Test details</div>
+    <div class="ann-body">Customer name, job number, component description, part number, and operator all captured before the test begins. These appear on the top bar during the test and are printed directly onto the PDF certificate.</div>
+  </div>
+  <div class="ann">
+    <div class="ann-title"><div class="ann-dot" style="background:var(--amber)"></div>Alarm system</div>
+    <div class="ann-body">Multi-level alarm monitoring runs as a background process throughout the test. Warnings appear in the gauge panel. Critical alarms trigger the E-stop automatically. All events are logged with a sensor snapshot.</div>
+  </div>
+</div>
+
+<div class="licence-note">
+  <span>bench-vision</span> — this mockup illustrates the pump bench configuration included in Installation #1. The platform supports additional bench types, sensor channels, and graph configurations. All software, design, and IP © Design Develop Host (Pixie / piDev) 2026. Devon Abbot / Specialised Steering (Pty) Ltd holds a perpetual licence to use this configuration on their commissioned bench infrastructure only.
+</div>
+
+</body>
+</html>

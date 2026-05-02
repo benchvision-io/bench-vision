@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BenchVision — Precision DAQ for Hydraulic Test Benches</title>
+  <meta name="description" content="Professional data acquisition software designed for hydraulic test benches. Real-time monitoring, automated logging, and ISO-ready reporting.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:       #0d1b2a;
+      --teal:       #0e8a7a;
+      --teal-light: #13b09e;
+      --teal-faint: rgba(14, 138, 122, 0.10);
+      --muted:      rgba(255,255,255,0.45);
+      --subtle:     rgba(255,255,255,0.07);
+      --white:      #ffffff;
+      --font-body:  'DM Sans', system-ui, sans-serif;
+      --font-mono:  'DM Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--navy);
+      color: var(--white);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(14,138,122,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14,138,122,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -160px;
+      right: -160px;
+      width: 520px;
+      height: 520px;
+      background: radial-gradient(circle, rgba(14,138,122,0.15) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    header {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2rem 2.5rem;
+    }
+
+    .wordmark {
+      font-family: var(--font-mono);
+      font-size: 1.05rem;
+      font-weight: 500;
+      color: var(--teal-light);
+      letter-spacing: 0.02em;
+    }
+    .wordmark span { color: var(--muted); font-weight: 400; }
+
+    .status-pill {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--teal-light);
+      background: var(--teal-faint);
+      border: 1px solid rgba(14,138,122,0.28);
+      padding: 0.35rem 0.85rem;
+      border-radius: 100px;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 4rem 2rem 6rem;
+      gap: 1.75rem;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--teal);
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-weight: 300;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      max-width: 700px;
+    }
+    h1 strong { font-weight: 600; color: var(--teal-light); }
+
+    .tagline {
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      font-weight: 300;
+      color: var(--muted);
+      max-width: 520px;
+      line-height: 1.7;
+    }
+
+    .props {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      justify-content: center;
+      margin-top: 0.25rem;
+    }
+
+    .prop {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.50);
+      background: var(--subtle);
+      border: 1px solid rgba(255,255,255,0.07);
+      padding: 0.38rem 0.85rem;
+      border-radius: 6px;
+      letter-spacing: 0.04em;
+    }
+
+    .cta-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.7rem;
+      margin-top: 0.25rem;
+    }
+
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--teal);
+      color: var(--white);
+      font-family: var(--font-body);
+      font-size: 0.95rem;
+      font-weight: 500;
+      text-decoration: none;
+      padding: 0.85rem 2rem;
+      border-radius: 8px;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .cta-btn:hover { background: var(--teal-light); transform: translateY(-1px); }
+    .cta-btn svg { width: 15px; height: 15px; opacity: 0.9; }
+
+    .cta-hint {
+      font-size: 0.75rem;
+      color: var(--muted);
+      font-family: var(--font-mono);
+    }
+
+    .divider {
+      width: 1px;
+      height: 72px;
+      background: linear-gradient(to bottom, transparent, rgba(14,138,122,0.35), transparent);
+    }
+
+    footer {
+      position: relative;
+      z-index: 1;
+      padding: 1.5rem 2.5rem;
+      border-top: 1px solid var(--subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .footer-left {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+    }
+
+    .footer-right {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.22);
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 1.25rem 1.5rem; }
+      main { padding: 3rem 1.5rem 4rem; }
+      footer { padding: 1.25rem 1.5rem; flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="wordmark">Bench<span>Vision</span></div>
+    <div class="status-pill">In Development</div>
+  </header>
+
+  <main>
+    <p class="eyebrow">Hydraulic Test Bench Software</p>
+
+    <h1>Precision DAQ software<br>built for the <strong>test bench.</strong></h1>
+
+    <p class="tagline">
+      Real-time sensor monitoring, automated data logging, and ISO-ready
+      test reports — designed specifically for hydraulic test bench engineers in South Africa.
+    </p>
+
+    <div class="props">
+      <span class="prop">Real-time DAQ</span>
+      <span class="prop">Automated Logging</span>
+      <span class="prop">ISO-Ready Reporting</span>
+      <span class="prop">Hardware-Agnostic</span>
+      <span class="prop">Safety Monitor</span>
+    </div>
+
+    <div class="cta-group">
+      <a href="mailto:hello@benchvision.io?subject=BenchVision%20%E2%80%94%20Register%20Interest&body=Hi%2C%0A%0AI%27d%20like%20to%20register%20my%20interest%20in%20BenchVision.%0A%0AName%3A%0ACompany%3A%0ANumber%20of%20hydraulic%20test%20benches%3A%0A" class="cta-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+        Register your interest
+      </a>
+      <span class="cta-hint">hello@benchvision.io · We'll be in touch</span>
+    </div>
+
+    <div class="divider"></div>
+  </main>
+
+  <footer>
+    <span class="footer-left">benchvision.io &nbsp;·&nbsp; South Africa &nbsp;·&nbsp; Launching 2027</span>
+    <span class="footer-right">© 2026 BenchVision</span>
+  </footer>
+
+</body>
+</html>

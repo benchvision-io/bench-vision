@@ -1,0 +1,14 @@
+# Private pages — not for public repo
+for-devon.html
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+
+# Directories not for public repo
+adjacent-markets/
+discovery/
+docs/
+observations/

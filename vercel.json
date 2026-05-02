@@ -1,0 +1,11 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/portal",    "destination": "/portal.html" },
+    { "source": "/hmi",       "destination": "/hmi.html" },
+    { "source": "/overview",  "destination": "/overview.html" },
+    { "source": "/roadmap",   "destination": "/roadmap.html" },
+    { "source": "/",          "destination": "/index.html" }
+  ]
+}
