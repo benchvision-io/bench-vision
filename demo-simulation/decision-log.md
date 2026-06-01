@@ -20,6 +20,24 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-01 — Pump serial block is immaterial; the engine is pump-agnostic (Devon V6)
+
+**Question put to Devon.** Confirm his pump falls in the PC200-8 **#300001–** serial block — the concern being that an earlier serial uses a different performance chart, so the wrong chart could invalidate the acceptance envelope.
+
+**Devon's answer (voice note / Video 6, 2026-06-01).** The chart is "**merely an example**"; "**you can't build a model off an example.**" If the formulation is correct, the software plots *any* pump live from logged **flow / pressure / torque**, so the serial number is "**immaterial**."
+
+**Decision.** Serial-block confirmation is **NOT required**. The PC200-8 Fig.1 chart is a **validation case** — the reference the formula engine was tuned against — **not the model**. The engine is **pump-agnostic**: it derives the live curves from logged sensor data, not from a serial-specific chart. The "which serial / which chart" question is closed for good and must not be re-queued (this is the exact loop the ask-devon discipline exists to stop — he has now answered it in principle more than once).
+
+**Nuance for the record (not a Devon question).** Certifying a *specific* pump still means giving that pump its **own profile / chart** at real-bench commissioning time — a per-profile data point captured when the real bench runs, not a blocker on the engine now. The PC200-8 profile remains the validation profile; further pumps get their own profiles as they are certified.
+
+**Alternatives considered.** Batch the serial-block confirm into the next Devon message (rejected — already answered; re-asking erodes trust and makes the project look disorganised).
+
+**Source.** Devon WhatsApp voice note / Video 6, 2026-06-01; synthesis in `devon-videos/devon-graph-walkthrough-notes.md`.
+
+**Affects.** `TASKS.md` — serial-block item retired from Devon open points; `displacement.mode` is **settled by chart-match, reinforced by Devon's pump-agnostic principle**: machine-adjusted **112 cc/rev × 2000 rpm = 224 L/min** no-load matches the chart's printed **226 / 222** (already validated in the profile and the flow tests), so the profile's `machine_adjusted` setting is confirmed against the sheet. Devon's "displacement is immaterial" principle and the fact that flow is *measured* (not derived) on a real bench are reinforcement, not the primary reason. The only genuinely-open Devon item now is **sample rate / certificate cadence**. No profile or formula change — this confirms the existing pump-agnostic design.
+
+---
+
 ## 2026-06-01 — Torque is a monitored reference, not a graded pass/fail channel (Devon V2/V3)
 
 **Decision.** Torque does **not** grade pass/fail. The pump is judged on the **flow** acceptance envelope; the torque curve is a **monitored reference** — the second characteristic plotted against pressure, watched for its rise-then-plateau shape. The chart's separate "Torque Upper Limit" line is therefore **not** transcribed into a pass/fail band, and the zero-width `[acceptance.torque]` (upper==lower==nominal) is the correct, settled design — reframed from "calibration pending" to "monitored reference by design".
