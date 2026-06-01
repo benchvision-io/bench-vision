@@ -21,3 +21,15 @@ __pycache__/
 
 # Generated demo outputs
 benchvision_*.png
+
+# demo-simulation — track the docs (.md) and transcripts (.txt); ignore heavy,
+# regenerable, or customer-adjacent binary media.
+#   Videos: Devon's WhatsApp clips + screen recordings (large; reference/
+#   customer-adjacent — see spec §9). ** matches the top-level and devon-videos/.
+demo-simulation/**/*.mp4
+demo-simulation/**/*.mov
+demo-simulation/**/*.m4v
+#   Chart stills / frame grabs (jpg + png crops).
+demo-simulation/devon-videos/stills/
+#   Generated validation overlays + plot exports (regenerate from benchvision-app/).
+demo-simulation/*.png

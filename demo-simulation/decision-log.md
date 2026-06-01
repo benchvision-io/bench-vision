@@ -1,0 +1,556 @@
+# BenchVision Demo Simulation — Decision Log
+
+> Running record of *why* the spec changed at each iteration. The two-minute habit Workflow 01 Step 10 mandates; the only thing that prevents future-you from second-guessing a choice and silently reverting it.
+>
+> Created: 2026-05-19 (Unlearn Workflow 01 — Step 10)
+> Companions: `spec.md`, `out-of-scope.md`, `features.md`
+
+---
+
+## How to read this document
+
+Entries are append-only, newest at the top. Each entry records:
+
+- **Date** — when the decision was taken.
+- **Decision** — what was chosen.
+- **Alternatives considered** — what was rejected and why.
+- **Rationale** — the reason. This is the load-bearing part — without it, a future session may revert silently.
+- **Source** — where the decision came from (conversation, document, observation).
+- **Affects** — which of `spec.md`, `out-of-scope.md`, `features.md` carries the consequence.
+
+---
+
+## 2026-05-30 — TorqueChannel onto the engine (derive from live flow), PowerChannel added; dashboard curve de-hard-coded
+
+**Decision.** `TorqueChannel` now derives torque from **live flow** via `absorption_torque_from_flow_v1` — `T = P·(Q·1000/n)·sections / (20π·η)` — with sections, efficiency and rated speed from the profile and pressure/flow read live. The fixed `Vg=95`, `target_torque=575` and the ramp-fraction scaling are gone; the channel now mirrors the pressure cycle and derives every tick, exactly like FlowChannel. A new `PowerChannel` derives `P_hyd = P·Q/600` via `power_from_flow_pressure_v1`. `SpeedChannel`'s rated speed is lifted from the hard-coded 1000 rpm to the profile's `rated_rpm` (2000). `bench_dashboard.py::save_characteristic_curve` no longer hard-codes `245−0.5P`, `P×95/62.8` or the ±15 band — it draws the flow/torque lines from the registry and the acceptance band from the profile's digitised polyline.
+
+**Alternatives considered.** (a) Keep deriving torque from a fixed `Vg` and just swap 95→112 (rejected 2026-05-27 — rescales a straight line that should bend over; can match one of Devon's two torque reads but never both). (b) Feed the torque formula the *live SpeedChannel* rpm rather than the profile's rated rpm (rejected — the flow model is parameterised on a 2000 rpm basis, so during the speed ramp `vg_eff = Q/n` blows up at low n and produces nonsense torque; using rated rpm keeps flow and torque on the same basis). (c) Add Power as a sixth live gauge (deferred — would disturb the demo's fixed five-panel layout and needs a design-system colour Power doesn't yet have; Power is surfaced on the characteristic/"power" curve instead, which is where Devon names it in V2).
+
+**Rationale / validation.** `validate_flow_refactor.py` CHECK C/D + 16 unit tests (all pass). Deriving torque from live flow makes the **plateau emerge from the physics**, not a special case: torque rises linearly through the full-stroke region and lands on the digitised chart at 50/100/130 bar (errors +8/+1/+5 Nm), then plateaus once the pump is on its constant-power line. Power confirms the mechanism — flat at **48.5 kW** for every pressure ≥150 bar (spread 0.00 kW). Overlay: `demo-simulation/torque_power_validation.png`.
+
+> **Candid gap — plateau absolute value.** The engine plateaus at **~515 Nm** (the constant-hydraulic-power value); the chart's nominal torque keeps climbing to **~590 Nm** through 130→250 bar before truly flattening. That ~75 Nm (≈13%) gap is real and **expected**: in the constant-power region hydraulic power is flat, so input torque is only flat if efficiency is constant — but a destroking pump's total efficiency *falls* at partial displacement, so absorption torque creeps up. Reproducing that needs an **efficiency-vs-displacement curve**, which is **not in the digitised chart**, so I did **not** invent one to force-fit 590 (per the brief's "no invented quantities"). This is the `pc200-8-chart-digitised-values.md` §5 "plateau absolute value to be calibrated" item, now quantified. Options for Devon's next pass: (a) transcribe the chart's printed torque reference line and add an `efficiency_curve`/`torque_plateau_nm` field to the profile; (b) confirm whether his spoken "590" is the nominal trace or the chart's upper-limit reference line (the digitised doc suspected the latter).
+
+**Source.** Implementation 2026-05-30; physics + digitised torque column from `pc200-8-chart-digitised-values.md` §2–3.
+
+**Affects.** `bench_simulator.py` (TorqueChannel rewrite, new PowerChannel, SpeedChannel rated rpm, BenchSimulator wiring + `derived_channels`), `bench_dashboard.py` (characteristic curve), `validate_flow_refactor.py`, `tests/`. **Open:** plateau calibration (above); flow/torque are modelled at rated speed, so speed-fault coupling (shaft-slip dropping torque) is a deferred refinement — flagged because the fault scenario injects a speed drop the derived torque won't currently follow.
+
+---
+
+## 2026-05-30 — FlowChannel refactored to the formula engine (constants → config, body → registry)
+
+**Decision.** `FlowChannel` no longer holds any pump constants or formula body. It reads a `PumpProfile` (`pump_profile.py`, loaded from `profiles/pc200-8-hpv95.toml`) and computes flow by resolving a named formula from a `FormulaRegistry` (`formula_registry.py`). For the PC200-8 the profile selects `pump_flow_pc_destroke_v1` (flat to the ~130 bar PC cut-in, then constant-power hyperbola `Q = 29120/P`). Adding another pump is now a sibling `.toml`, not a code change. **Torque/Speed/Temperature/Pressure are deliberately untouched this session** — the FlowChannel pattern is the load-bearing decision and is being confirmed before the same shape is applied to Torque/Power.
+
+**Alternatives considered.** (a) Refactor all derived channels at once (rejected — if the FlowChannel pattern needs unpicking, three channels is three times the rework; explicit check-in gate first). (b) Switch FlowChannel straight to the destroke formula with no faithful-refactor baseline (rejected — could not then distinguish "the refactor changed behaviour" from "the physics changed"; see validation below).
+
+**Rationale / validation.** The refactor is proven on two independent axes by `validate_flow_refactor.py` + `tests/test_formula_registry.py` (15 tests, all pass): (1) **Faithful** — the registry's `pump_flow_linear_v1` reproduces the *old* hard-coded `Q = 245 − 0.5·P` **byte-identically** (max abs error 0.0 L/min across 0–400 bar), so the engine is a behaviour-preserving substitution. (2) **Correct** — the destroke model selected for the PC200-8 tracks the digitised chart to **RMS 0.74 L/min**, against **21.6 L/min** for the old linear model (≈29× closer). Overlay: `demo-simulation/flow_refactor_validation.png`.
+
+> **Candid note on the brief's "keep the PC200-8 plot identical" wording.** Taken literally this conflicts with the already-logged 2026-05-27 decision to change the flow *shape* from linear to destroke. Resolved by separating the two claims: the engine is *byte-identical to the old code when given the old formula* (faithful-refactor proof), and the PC200-8 profile *ships the corrected destroke formula* (validated against the chart). The plot therefore changes **on purpose and visibly**, not silently — which is the outcome the decision-log discipline wants.
+
+**Source.** Implementation session 2026-05-30; physics from `pc200-8-chart-digitised-values.md`; approach from the 2026-05-27 entries below.
+
+**Affects.** `bench_simulator.py` (FlowChannel + BenchSimulator), new `pump_profile.py`, `formula_registry.py`, `profiles/pc200-8-hpv95.toml`, `validate_flow_refactor.py`, `tests/`. **Open / next session:** TorqueChannel still hard-codes `Vg=95` and `target_torque=575`; `bench_dashboard.py::save_characteristic_curve` still hard-codes `245−0.5P`, `P×95/62.8` and the ±15 placeholder band — all to be moved onto the profile after the Torque refactor is confirmed.
+
+---
+
+## 2026-05-30 — Sample rate: acquire at 10 Hz, decimate to ~1 Hz for the operator view (configurable per test)
+
+**Decision.** Resolves Devon's open v5 question ("every second… or point one of a second"). Acquire derived channels at **10 Hz**; present a **~1 Hz decimated** trend to the operator. Both live in the pump profile (`[acquisition] sample_rate_hz`, `operator_log_hz`) so a test can override per pump/bench. This formalises what the code already did informally (10 Hz internal tick, 1 Hz history) rather than inventing a new cadence.
+
+**Alternatives considered.** (a) 1 Hz everywhere (rejected — a 30 s pressure ramp at 1 Hz gives ~30 points across 0–400 bar ≈ 13 bar/point; the PC cut-in knee, ~30 bar wide, gets only 2–3 points and renders as a corner-cut, and the torque plateau is read from too few samples to be convincing). (b) 10 Hz everywhere including the operator view (rejected — 300 points across a ramp is past what an operator tracks live and clutters Devon's Excel-style point table; fidelity the eye doesn't use). (c) Fixed, non-configurable (rejected — real benches and pumps differ; a slow thermal test and a fast pressure sweep want different rates).
+
+**Rationale.** What needs resolution is **pressure resolution through the knee and plateau**, which is an acquisition concern, not a display one — so acquire high, display low. 10 Hz gives ~20 points through the cut-in knee (clean curvature) and a well-sampled plateau; ~1 Hz display matches Devon's mental model (one row per reading) and reduces cognitive load. Cost is negligible: 10 Hz × ~6 channels × minutes is kilobytes in SQLite on the NUC, and the LabJack T7 path drives well above 10 Hz, so neither storage nor the real bench is a constraint. **For Devon to confirm:** that 10 Hz acquisition / 1 Hz display matches how he'd want the certificate's point table to read.
+
+**Source.** Devon v5 (`transcripts/video5_17-01-47.txt`, 02:00–02:10); design call Pix ↔ Claude 2026-05-30.
+
+**Affects.** `profiles/*.toml` (`[acquisition]`); `bench_simulator.py`/`bench_dashboard.py` (already 10 Hz tick / 1 Hz history — now config-driven); `features.md` (acquisition-rate note); certificate point-table rendering (later).
+
+---
+
+## 2026-05-30 — Formula registry shape: named, version-tagged, pure functions; custom-mode interface preserved
+
+**Decision.** The curated registry is a `name → FormulaSpec` map. Each `FormulaSpec` carries `name`, `version`, `summary`, `required_inputs`, `output_unit`, a pure `fn(inputs) -> float`, and `provenance`/`author` fields. Configs reference a formula three equivalent ways (`pump_flow_pc_destroke`, `…_v1`, `…@v1`); a versioned reference is encouraged so a certificate's maths is pinned. `registry.evaluate()` validates `required_inputs` are present before calling `fn` — the single choke point the future caution layer (range/unit/monotonicity checks) attaches to. Re-registering a qualified name with a *different* function is refused (bump the version instead). MVP is **in-process Python only.**
+
+**Alternatives considered.** (a) Bare `dict[str, Callable]` (rejected — no version pin, no declared inputs/units, no place for provenance; can't support the certificate-reconstruction or caution-layer requirements). (b) Designing the live sandbox now (rejected — out of scope this session; but see below).
+
+**Rationale.** The signature `(inputs: Mapping[str, float]) -> float` is deliberately what a *custom* user-authored formula would also present, so the registry interface **does not preclude** the gated/named-author/sandboxed custom-formula mode decided 2026-05-27 — a custom formula is just a `FormulaSpec` with `provenance="custom"` and an `author`, version-locked once it has produced a result. This honours that decision without building its UI now (the hooks are present: `provenance`, `author`, version-lock semantics). The unit-conversion constant `62.8` is documented as `TORQUE_BAR_CC_TO_NM = 20π` (physics, not pump nameplate) and stays in code.
+
+**Source.** Implementation session 2026-05-30, against the 2026-05-27 custom-formula and caution-layer entries below.
+
+**Affects.** `formula_registry.py`; `spec.md` §8A; later: caution-layer validators hang off `evaluate()`, custom-mode persistence reuses `provenance`/`author`.
+
+---
+
+## 2026-05-30 — Acceptance band represented as a digitised polyline (per pump), formula+tolerance also supported
+
+**Decision.** For the PC200-8 the flow acceptance band is a **polyline** of digitised `(pressure, upper, lower)` points carried in the profile (`[acceptance.flow]`), interpolated linearly between gridlines. The schema also supports a `formula_tolerance` mode (nominal formula ± tolerance) for pumps specified that way.
+
+**Alternatives considered.** A single global formula+tolerance for all pumps (rejected for PC200-8 — the printed envelope is asymmetric and varies in width across the sweep; a symmetric ±x band would misstate pass/fail). Polyline only, no formula option (rejected — some pump specs genuinely are "nominal ± x" and shouldn't be forced into hand-digitised points).
+
+**Rationale.** Devon's *mental model* is formula-y, but the PC200-8 *certificate is judged against the printed chart envelope* — so for this validation case the digitised points ARE the truth, and approximating them with a formula would inject error into a pass/fail decision. Keeping both representations in the schema lets each pump use whichever matches its manufacturer spec. **Still open:** envelope widths above the PC cut-in are interpolated and flagged in `pc200-8-chart-digitised-values.md` §5 for transcription against the chart's printed limit callouts before pass/fail goes live.
+
+**Source.** Devon v1 (envelope is load-bearing for pass/fail); `pc200-8-chart-digitised-values.md`; design 2026-05-30.
+
+**Affects.** `pump_profile.py` (`AcceptanceBand`); `profiles/*.toml`; `bench_dashboard.py` (replaces the ±15 placeholder, after Torque refactor); `features.md` (acceptance band as first-class data).
+
+---
+
+> **Note (2026-05-27):** The four entries below this line capture a design discussion held *before* Devon's Excel walkthrough video arrives (expected 2026-05-28). The architecture and reasoning are recorded now while fresh — Pix's call, on the basis that editing is cheap and the reasoning is the expensive thing to reconstruct. Exact formula mechanics (the 95→112→127 chain) are confirmed only after the video; these entries are decisions of *shape and approach*, open to refinement on the specifics.
+
+## 2026-05-27 — Test characteristics are a parameterised formula engine, not hard-coded curves
+
+**Decision.** BenchVision computes derived channels (flow, torque, power, etc.) from a **library of named, tested formulas** selected and parameterised by the per-test **configuration file**. The config carries a "pump profile" — theoretical displacement, machine-adjusted flow, rated RPM, pressure sweep, acceptance limits, units — and names which formula each derived channel uses. No pump-specific constants live in channel code. The PC200-8 chart becomes a **validation case** for the engine, not the model itself.
+
+**Alternatives considered.** (a) Hard-coding the formula *and* constants per pump in Python (current state — every pump needs code changes; the trap that produced the 95/112 error). (b) Full free-text formula-in-config evaluated by the engine for *all* tests (rejected as the default — see liability/sandbox entry below). The chosen middle path keeps the maths curated and auditable while making any pump a config change, not a code change.
+
+**Rationale.** Devon's steer (2026-05-27): "it should make zero difference what the displacement is — the graph should formulate itself." His Excel method (formula in a cell, inputs in a column, graph regenerates) is the mental model. Crucially, the *formula* is stable per test type; only the *inputs* vary test-to-test — so parameterisation, not formula-authoring, satisfies the real need. A curated registry also protects the certificate's trustworthiness, which is BenchVision's commercial foundation. Awaiting the video to confirm whether Devon ever changes the formula itself between pump *types* (handled by multiple named formulas) vs only the inputs.
+
+**Source.** Devon's WhatsApp reply 2026-05-27; design discussion Pix ↔ Claude 2026-05-27. See [[BenchVision formula-engine principle]] in memory.
+
+**Affects.** `spec.md` §8A (new); `bench_simulator.py` (FlowChannel/TorqueChannel — lift constants to config, then formula selection to a registry keyed by config); `features.md` (config-driven derived channels); config-file schema design.
+
+---
+
+## 2026-05-27 — Gated "advanced" custom-formula mode with liability on the named editor
+
+**Decision.** A free-text custom-formula capability is offered as an **advanced option**, but gated and bounded so liability sits with the editor, not DARCSI: (a) tied to a **named user account with an advanced/engineer permission** — *not* a shared password, because identity is what makes liability land; (b) an **explicit at-save responsibility acknowledgement**, recorded with name + timestamp; (c) outputs/certificates produced with a custom formula carry a **provenance stamp** ("computed using a custom formula authored by [name], not a BenchVision-verified relationship"); (d) the formula is **version-locked** once it has produced a result, so any historical certificate is reconstructable; (e) it still runs in a **maths-only sandbox** (whitelisted functions, no file/system access).
+
+**Alternatives considered.** A single shared password (rejected — cannot attribute authorship, so liability cannot transfer). No custom mode at all (rejected — Devon/advanced users want Excel-style freedom; also a commercial differentiator). Letting the liability acknowledgement substitute for the sandbox (rejected — see rationale).
+
+**Rationale.** A password gates *access* but does not transfer liability; naming the author + recorded acceptance does. The provenance stamp prevents a custom result being passed off as BenchVision-certified, protecting DARCSI downstream, and reuses the live-vs-training certificate-marking boundary already designed (§8). The sandbox is a **separate** concern from liability: editor accepts "is the formula correct?"; a defect that let a formula touch the filesystem or crash the bench would still be DARCSI's. Good custom formulas can later "graduate" into the verified registry after review. **Caveat (not legal advice):** disclaimers reduce but do not eliminate vendor exposure, especially given an engine/sandbox defect — the acknowledgement wording needs professional legal review before commercial launch; plain-language is acceptable for MVP/discovery.
+
+**Source.** Pix's proposal + design discussion Pix ↔ Claude 2026-05-27.
+
+**Affects.** `out-of-scope.md` (advanced-mode UI is fast-follow, not MVP — but design the hooks now: named-user permission, provenance stamp, audit record); `spec.md` §8A; user/permission model; certificate render path.
+
+---
+
+## 2026-05-27 — Explainable caution layer over formula edits (guardrail, not gate)
+
+**Decision.** Editing a formula triggers an **explainable, deterministic caution layer** that shows the anticipated outcome before commit: (1) **forward-preview** the resulting curve across the pressure sweep, ideally beside the previous one; (2) **range-check against the pump profile** (e.g. "predicts 1900 Nm at 250 bar; reference ~590 Nm — check displacement units?"); (3) **unit/dimensional check**; (4) **physical-plausibility check** (flow non-negative and falling/flat with pressure, torque rises-then-plateaus, power bounded). It **warns, it does not block** — the named editor may proceed. Any shown-and-overridden caution is written to the **audit record**. ML-style "this curve is an outlier vs known-good pumps" is post-MVP and strictly advisory; it must never decide pass/fail.
+
+**Alternatives considered.** A hard gate that blocks non-conforming formulas (rejected — conflicts with liability-on-editor and with legitimate edge cases). An opaque "AI thinks this is wrong" judgement (rejected — erodes trust in a certification tool; cautions must be explainable). No caution at all (rejected — re-opens the silent-wrong-result risk the gating was meant to close).
+
+**Rationale.** The caution is what stops a well-intentioned edit producing nonsense, and the range-check specifically would have caught the 95/112 error automatically. Keeping it explainable and deterministic builds trust; keeping it a guardrail (not a gate) is consistent with liability sitting on the editor — and recording "editor was warned X, acknowledged, proceeded" *reinforces* the liability shift rather than competing with it. The same validator engine later sanity-checks **live** test runs, bridging toward the edge-AI / calibration adjacent-market directions. Build cautions as pluggable validators; the cheap high-value ones (preview, range, units, monotonicity) belong in MVP.
+
+**Source.** Pix's "intelligence/caution" proposal + design discussion Pix ↔ Claude 2026-05-27.
+
+**Affects.** `spec.md` §8A; `features.md` (formula-edit preview + validator set); audit-record schema; intelligence/validator module shared with live-run monitoring.
+
+---
+
+## 2026-05-27 — Pump displacement semantics corrected: theoretical 95, adjusted 112 (Devon)
+
+**Decision.** Correcting the two entries immediately below. Per Devon (2026-05-27), the pump's **theoretical displacement is 95** (the base spec of the HPV95 series, shared across machines — e.g. PC1250-9 is also 95 theoretical). The **112** printed on the PC200-8 sheet is the **machine-adjusted flow** figure for this application, not the theoretical displacement; on the bench, adjusted to machine spec, Devon actually reads ~127. Chain: theoretical 95 → adjusted target 112 → measured ~127. The label "displacement = 112" in the entries below is therefore **wrong**; 112 is a flow-derived figure.
+
+**Alternatives considered.** Silently editing the entries below (rejected — the log is append-only; corrections are recorded, not overwritten). Waiting for the video before recording anything (rejected — the *direction* of the correction is already clear from Devon; only the exact 95→112→127 mechanics await the video).
+
+**Rationale.** My arithmetic (112 × 2000 rpm ÷ 1000 = 224 L/min ≈ no-load envelope) was sound but mislabelled — it confirms 112 is a *flow* figure, exactly as Devon says. **What survives:** the destroke/plateau physics and the decision to derive torque from *live flow* rather than a frozen constant (entry "torque/flow are PC-controlled curves" below) both stand — and in fact align with Devon's formula-based steer, since deriving from live flow is the formula doing the work rather than a baked-in number. Exact mechanics pending Devon's Excel video (expected 2026-05-28).
+
+**Source.** Devon's WhatsApp reply 2026-05-27, cross-checked against the PC200-8 sheet.
+
+**Affects.** `bench_simulator.py` (`PUMP_DISPLACEMENT_CC_PER_REV` — do not simply set 112; model theoretical vs adjusted as profile inputs); `pc200-8-chart-digitised-values.md` (annotated); supersedes the "112 not 95" framing in the two entries below.
+
+---
+
+## 2026-05-27 — PC200-8 manufacturer test sheet located; pump is 112 cc/rev, not 95
+
+**Decision.** The test sheet Devon read out in the 2026-05-25 clips is `docs/PC200-8 Main Pump Testing criteria.pdf` p.14 (Komatsu EEN00038, *Fig. 1 Pump Assembly Performance Specification Chart*, part 708-2L-00500). It was already in the repo. Confirmed as the same chart: all three of Devon's spoken readings (50 bar→220 L/min, 200 bar→145 L/min, 250 bar→590 Nm) sit on it. The pump is **HPV95+95, displacement 112+112 cc/rev** — "95" is the model name, not the displacement. `PUMP_DISPLACEMENT_CC_PER_REV` should be **112**, not 95. Test speed is **2000 rpm** standard.
+
+**Alternatives considered.** Continuing to wait for Devon to send a sheet (unnecessary — it was on disk). Trusting the earlier inference that the sheet would yield ~148 cc/rev (it did not; see below).
+
+**Rationale.** 112 cc/rev validates against the chart independently: 112 cc/rev × 2000 rpm ÷ 1000 = 224 L/min, exactly the chart's no-load envelope (226 upper / 222 lower). The 95 value cannot reproduce that. Full digitisation and drop-in code in `pc200-8-chart-digitised-values.md`.
+
+**Source.** PC200-8 test sheet p.14, read 2026-05-27; cross-checked against `devon-videos/devon-graph-walkthrough-notes.md`.
+
+**Affects.** `spec.md` (pump constants), `bench_simulator.py` (`PUMP_DISPLACEMENT_CC_PER_REV`, FlowChannel model), `bench_dashboard.py` (acceptance envelope). Supersedes the "awaiting Devon's spec sheet" entry of 2026-05-25.
+
+---
+
+## 2026-05-27 — Torque/flow are PC-controlled curves, not linear; a fixed Vg can never fit
+
+**Decision.** Both derived channels must change *shape*, not just constants. The HPV95 is a variable-displacement, power-controlled pump: full stroke at low pressure, destroking past the PC cut-in (~130 bar). Flow is therefore flat (~224 L/min) then a constant-power hyperbola `Q ≈ 29120 / P`, not the current linear `Q = 245 − 0.5·P`. Torque must be derived from **live flow** (`T = P × (Q×1000/n) × N_sections / 62.8 / η_m`), not a fixed `Vg`, so it rises then **plateaus** — the plateau Devon flagged in Video 3.
+
+**Alternatives considered.** Just replacing the torque constant 95 → 112 (rejected: rescales a straight line that should bend over — matches one of Devon's two torque points but never both). Keeping the linear flow fit (rejected: wrong no-load value and wrong high-pressure tail, even though it passes through the two anchor points).
+
+**Rationale.** Fixed-Vg torque gives 178 Nm at 100 bar (single) / 357 (both) and grows linearly; Devon read ~400 at 100 bar **and** ~590 at 250 bar. Only a destroking model reconciles both: full-stroke rise to the PC knee, then constant-power plateau. The code's own docstring already noted `Vg = Q×1000/n` — deriving from live flow makes the plateau emerge for free. This corrects the 2026-05-25 entry's assumption that the gap meant a wrong Vg (~148 cc/rev); the real gap is the destroke, and the nameplate is 112.
+
+**Source.** Physics reconciliation against PC200-8 chart + Devon's video readings, 2026-05-27. Detail and drop-in snippets in `pc200-8-chart-digitised-values.md`.
+
+**Affects.** `bench_simulator.py` (TorqueChannel `_derive_torque` + inject flow ref; FlowChannel `_derive_flow`), `bench_dashboard.py` (envelope + plateau on torque plot). Open: transcribe the chart's printed limit callouts for exact envelope/plateau values.
+
+---
+
+## 2026-05-19 — Devon question logged: legitimate operator diagnostic actions (pending resolution)
+
+**Decision.** A question is open with Devon: *"Are there legitimate operator diagnostic actions in standard hydraulic-test practice that aren't sensor overrides but might look similar — e.g., force-recalibrate of a specific channel, force-zero at a known state, bypass non-safety-critical sensor (like ambient temperature) when broken and the test doesn't require it? If those exist, how are they handled today, and which need to be in BenchVision MVP?"*
+
+**Alternatives considered.** Pre-empting Devon's answer based on general DAQ practice. Conflating these actions with the safety-boundary "operator override" concern (settled in the entry below).
+
+**Rationale.** The safety boundary is settled (no live-mode override of real sensor logic). But standard hydraulic-test practice may include legitimate operator diagnostic actions that aren't overrides and that should be features in their own right. Devon is the domain expert; ask him rather than guess.
+
+**Source.** Pix's escalation during Item 2 review of v0.1, 2026-05-19.
+
+**Affects.** Pending. Resolution may add features to `features.md` (force-recalibrate, force-zero, bypass-non-safety-critical) **or** add an out-of-scope entry if Devon confirms these belong to future BenchVision editions rather than MVP.
+
+---
+
+## 2026-05-19 — Safety boundary: operators cannot override real sensor logic in live mode
+
+**Decision.** Operators must never be able to override real sensor logic in live mode. The architecture enforces this **by construction, not by policy**: the discreet operator trigger (feature 12) feeds the simulator module only; the simulator is only connected in training / demo mode; live mode reads exclusively from real-sensor HAL drivers. A live-mode session and a training-mode session cannot be active simultaneously.
+
+**Alternatives considered.** Allowing operator override gated by license tier or admin role. Allowing override inside a "calibration mode" sub-state of live mode.
+
+**Rationale.** Operator override of real sensors in live mode would violate ISO 4413 safety-integrity principles, bypass real fault conditions (operator decides "that pressure reading is wrong" and overrides, missing a real fault), and create audit / liability problems. Architectural enforcement (the trigger has no live-mode wiring to drive) is more robust than policy enforcement (rules operators are trusted to follow). Pix's instinct check during Item 2 review surfaced and confirmed this concern.
+
+**Source.** Pix's instinct check and Item 2 resolution during v0.1 review, 2026-05-19.
+
+**Affects.** `spec.md` §8 (safety-boundary statement); `out-of-scope.md` §C (new rule "do not implement live-mode operator override of real sensor logic"); `features.md` feature 12 (trigger is mode-scoped).
+
+---
+
+## 2026-05-19 — Simulator reframed as first-class BenchVision module with operator-selectable modes
+
+**Decision.** The simulator is no longer a demo-only artefact. It ships as a first-class part of the BenchVision product and exposes two operator-selectable runtime modes: **live test** (real sensors, production audit trail, real certificates) and **training / demo test** (simulator-driven, runs tagged non-production, certificates marked accordingly or suppressed). The demo simulation is BenchVision running in training / demo mode with scripted scenarios pre-loaded.
+
+This **extends, does not contradict**, the earlier "Simulation is a configuration of BenchVision, not a fork" decision. The configuration boundary moves from "the simulator is opt-in at build / route configuration" to "the simulator is always shipped, mode is selectable at runtime".
+
+**Alternatives considered.** Keeping the simulator as a demo-only configuration with the trigger UI omitted from production builds. Adding a `demo_mode` runtime flag without exposing modes to operators.
+
+**Rationale.** Pix's reframe during v0.1 Item 2 review: if the simulator is a first-class shipping module, BenchVision gains a built-in operator-training capability — a meaningful commercial differentiator (Germany values training credentials heavily; Komatsu benefits from on-bench training without real-hardware risk; the *Getting Calibrated* educational vertical reuses the same engine). The architecture also becomes more honest — no "secret feature only Devon knows about", documented training mode any operator can enter. The *demo's* MVP scope does not expand materially; the *productised* training-mode UX (production-side mode-switcher UI, structured curriculum content, training-completion certification logic) is post-MVP and lives in `out-of-scope.md` §A14. The architectural seam, however, is locked here.
+
+**Source.** Pix's reframe during v0.1 Item 2 review, 2026-05-19.
+
+**Affects.** `spec.md` §5, §8; `features.md` feature 12; `out-of-scope.md` §A14; carries commercial implications for FF27 / *Getting Calibrated* product positioning.
+
+---
+
+## 2026-05-19 — Adversarial-review "substantial finding" rubric defined
+
+**Decision.** A finding from the Workflow 01 Step 7 adversarial review is "substantial" — and therefore blocks commissioning — if it would: (a) change a feature in `features.md`, or (b) change an entry in `out-of-scope.md`, or (c) change a section heading in `spec.md`. Minor copy edits, phrasing improvements, and stylistic adjustments are not substantial.
+
+**Alternatives considered.** Leaving "substantial" undefined and relying on reviewer judgement. Using a different rubric (e.g., effort-estimate threshold, or a numeric severity score).
+
+**Rationale.** The v0.1 §10.4 used "no substantial new findings" as a gate without defining "substantial", making the gate circular and unverifiable. The (a)/(b)/(c) rubric ties the substantial threshold to durable artefact changes — review findings that would force edits to load-bearing documents — which is both objective and aligned with the workflow's structural commitments.
+
+**Source.** Item 1 resolution during v0.1 review with Pix, 2026-05-19.
+
+**Affects.** `spec.md` §10.2.
+
+---
+
+## 2026-05-19 — Commissioning checklist replaces circular success criteria
+
+**Decision.** §10's four success criteria are replaced with a six-item commissioning checklist of independently testable outcomes (§10.1). The checklist is the gate for commissioning; the adversarial-review pass becomes a separate quality gate (§10.2) with its own explicit rubric (see entry above).
+
+**Alternatives considered.** Refining the existing four criteria in place. Keeping the "adversarial pass returns no substantial new findings" framing without defining "substantial".
+
+**Rationale.** Two of the four v0.1 criteria were not testable as written — the "adversarial pass" gate was circular without defining "substantial", and the "rehearsal aids" reference was undefined. Replacing them with concrete, observable outcomes (e.g., "all four must-show capabilities trigger without errors", "zero placeholder strings in audience-facing UI", "15-minute solo end-to-end run") makes the commissioning gate verifiable by a third party rather than by subjective judgement.
+
+**Source.** Item 1 resolution during v0.1 review with Pix, 2026-05-19.
+
+**Affects.** `spec.md` §10.1.
+
+---
+
+## 2026-05-19 — Rehearsal aids removed from success criteria
+
+**Decision.** §10's "without rehearsal aids" reference is removed. Rehearsal aids are not a deliverable of the demo simulation; Devon's domain expertise plus a few self-driven practice runs is sufficient for either operator to drive the demo confidently.
+
+**Alternatives considered.** Defining "rehearsal aids" concretely (e.g., speaker notes, printed operator playbook, in-UI prompts) and keeping them as a deliverable. Rejected as unjustified scope.
+
+**Rationale.** Devon is the domain expert and Pix is the software owner; neither needs formal rehearsal aids to drive a demo of software they each know. The undefined term in v0.1 was a placeholder that masked the absence of a real requirement.
+
+**Source.** Item 1 resolution during v0.1 review with Pix, 2026-05-19.
+
+**Affects.** `spec.md` §10.
+
+---
+
+## 2026-05-19 — Stack reference corrected from Nuxt 3 to Nuxt 4
+
+**Decision.** All references to the frontend framework in `spec.md` are corrected from "Nuxt 3" to "Nuxt 4". Recruitrr and the broader stack are already on Nuxt 4 in production.
+
+**Alternatives considered.** Leaving "Nuxt 3" as written.
+
+**Rationale.** The v0.1 draft inherited a stale framework version from the agent's training data. Nuxt 4 shipped widely fairly recently and the existing project stack is already running it; the spec should reflect actual project state.
+
+**Source.** Pix's correction during v0.1 review, 2026-05-19.
+
+**Affects.** `spec.md` §4, §8.
+
+**Note for future sessions:** framework versions are a category of stale-model-data error worth double-checking against actual project state before locking technical-direction sections.
+
+---
+
+## 2026-05-19 — Workflow 01 Step 1 initial draft
+
+**Decision.** Demo simulation artefact set established: `spec.md`, `out-of-scope.md`, `features.md`, `decision-log.md` at `bench-vision/demo-simulation/`.
+
+**Alternatives considered.** None — this is the workflow's mandated output structure.
+
+**Rationale.** Per `learning/Unlearn/workflow-01-spec.md` revised recipe. The four-document set is the basis Workflow 02 will pick up.
+
+**Source.** Workflow 01 brief from Pix, 2026-05-19.
+
+**Affects.** All four artefacts created.
+
+---
+
+## 2026-05-19 — Operator-driven walkthrough chosen over self-running showcase loop
+
+**Decision.** The demo is operator-driven. The simulation does not run itself in MVP.
+
+**Alternatives considered.** Self-running kiosk loop; interactive sandbox; hybrid launcher. All three rejected for MVP.
+
+**Rationale.** Two operator profiles exist — Devon at Komatsu, Pix at UK / DE investor and distributor demos — each needing narrative control. A self-running loop dilutes that. An interactive sandbox creates demo-failure risk when a prospect explores corners. A hybrid launcher is unjustified scope for MVP. The self-running showcase loop *is* anticipated for trade-show and unattended-investor contexts, but post-MVP.
+
+**Source.** Pix's answer to clarifying Q1, 2026-05-19.
+
+**Affects.** `spec.md` §3; `out-of-scope.md` §A1; `features.md` implementation order.
+
+---
+
+## 2026-05-19 — Three non-negotiable demo properties locked in
+
+**Decision.** The demo must be (1) forgiving, (2) resettable in under five seconds from any state without restart, and (3) modular across three sections (operator view, test execution, reporting).
+
+**Alternatives considered.** Implicit handling of these properties through "good UX" — rejected as too vague to act on.
+
+**Rationale.** Each property maps to a concrete demo-failure mode either Devon or Pix would face in front of a paying-prospect audience. Naming them as non-negotiable forces them into the features list and the commissioning success criteria rather than leaving them aspirational.
+
+**Source.** Pix's answer to clarifying Q1, 2026-05-19.
+
+**Affects.** `spec.md` §3; `features.md` features 11–12; `spec.md` §10 success criteria.
+
+---
+
+## 2026-05-19 — Must-show capability set fixed at four surfaces
+
+**Decision.** MVP demonstrates: pre-flight gate + live operator UI + test sequence execution + certificate generation, plus the session history browser. This is the credibility-gate operator loop.
+
+**Alternatives considered.** Adding functional licence-tier gating; adding functional white-label theme swap. Both rejected for MVP.
+
+**Rationale.** These four surfaces together are the "clipboard to PDF, with an audit trail" story BenchVision exists to tell. Adding either rejected feature into MVP would handicap the demo's clarity without adding new surfaces the credibility audience needs to see.
+
+**Source.** Pix's answer to clarifying Q2, 2026-05-19.
+
+**Affects.** `spec.md` §4; `features.md` features 4–9.
+
+---
+
+## 2026-05-19 — Licensing tier as static reference screen, not functional gating
+
+**Decision.** A static FREE / PROFESSIONAL / ENTERPRISE comparison surface is in scope for the simulation, for investor-demo conversational use. Functional tier gating inside the simulation is out of scope.
+
+**Alternatives considered.** No licensing surface in the demo at all; full functional gating mirroring the production Licensing Layer.
+
+**Rationale.** Investor and distributor audiences benefit from seeing the commercial structure. Implementing functional gating duplicates production Licensing Layer work that will reach the demo automatically once the production layer ships into the shared codebase. A static reference screen gets the commercial-story value without the duplication.
+
+**Source.** Pix's answer to clarifying Q2, 2026-05-19.
+
+**Affects.** `spec.md` §4; `out-of-scope.md` §A2; `features.md` feature 16.
+
+---
+
+## 2026-05-19 — White-label deferred entirely; token-based theming constraint added now
+
+**Decision.** Functional white-label / branding swap is out of scope for MVP. The design system must use token-based theming throughout the simulation and avoid hardcoded brand strings, so functional white-label can be added post-MVP without architectural rework.
+
+**Alternatives considered.** Building a minimal white-label swap as part of MVP; deferring white-label without the token-based constraint.
+
+**Rationale.** Building white-label now is unjustified scope. *Not* enforcing token-based theming now is a load-bearing mistake — it would force a rewrite later instead of a configuration swap. The two halves of this decision are inseparable: defer the feature, but lock in the architectural readiness for it.
+
+**Source.** Pix's answer to clarifying Q2, 2026-05-19.
+
+**Affects.** `spec.md` §6; `out-of-scope.md` §A3; `features.md` feature 17.
+
+---
+
+## 2026-05-19 — Full-drama scripted scenarios via discreet operator trigger
+
+**Decision.** The simulation defaults to a nominal clean run. The operator has a discreet, audience-invisible trigger that fires one of several scripted anomaly scenarios on demand. MVP ships with at least two scenarios — one dramatic, one quieter — for tonal range.
+
+**Alternatives considered.** Nominal only; soft drama only; stochastic random anomalies.
+
+**Rationale.** Operator-controlled drama matches the conversation in the room, which neither nominal-only nor stochastic can do. The five-step intervention loop (detection → alarm → automatic pause → operator notification → intervention → resumed test or audited abort with certificate) is the value-demonstrating story; it needs to be reachable on demand, not by chance. Stochastic anomalies deferred to a separable future training-mode product, where unpredictability is the point of the product rather than a demo risk.
+
+**Source.** Pix's answer to clarifying Q3, 2026-05-19.
+
+**Affects.** `spec.md` §5; `out-of-scope.md` §A4; `features.md` features 12–14.
+
+---
+
+## 2026-05-19 — Hardware spec path corrected; spec anchored on existing `demo-machine-build.md`
+
+**Decision.** The canonical hardware reference for the demo simulation is `bench-vision/hardware/demo-machine-build.md` — at the top level of `bench-vision/`, **not** under `hydraulic testbench software/bench-vision/hardware/` as the session-starter prompt listed. The demo simulation spec is anchored on this existing document. Key extracted constraints: Ubuntu 26.04 LTS, Python 3.14, Node 22+ LTS, NUC-class form factor (target Intel N100 mini PC), 16 GB RAM, 512 GB NVMe SSD, bench-side 1080p monitor.
+
+**Alternatives considered.** Writing a placeholder hardware section in the spec and treating the hardware build as TBC. Rejected once the existing document was located.
+
+**Rationale.** A canonical reference already exists. Re-creating it in the demo-simulation directory would create two sources of truth. The session-starter prompt's path was wrong; the document is at the higher-level `bench-vision/hardware/` path.
+
+**Source.** Pix's correction to clarifying Q4, 2026-05-19.
+
+**Affects.** `spec.md` §7; session-starter prompt at `/Users/sueholder/Development/learning/Unlearn/` references (worth correcting separately).
+
+---
+
+## 2026-05-19 — OS divergence between full-product spec and demo machine acknowledged
+
+**Decision.** The demo simulation runs on Linux (Ubuntu 26.04 LTS) per the demo-machine spec. The full-product `docs/spec.md` §13 lists Windows 10/11 as the production PC target. This divergence is acknowledged but not resolved here — the demo follows Linux, the production OS decision is deferred to a future full-product spec rewrite.
+
+**Alternatives considered.** Forcing OS alignment now by either updating the full-product spec to Linux or constraining the demo to Windows.
+
+**Rationale.** Forcing alignment now is premature. The full-product spec is otherwise materially stale (see next entry); resolving OS as part of a spec rewrite is more efficient than resolving it in isolation. In practical terms, BenchVision is OS-portable — Python 3.14, Nuxt 3, FastAPI, SQLite, Jinja2, and WeasyPrint all run on both — so the divergence is not a blocker for either path.
+
+**Source.** Reading `docs/spec.md` §13 against `hardware/demo-machine-build.md` §2, 2026-05-19.
+
+**Affects.** `spec.md` §7 (notes the demo OS choice); recommends a follow-on TASKS.md item for full-product spec OS resolution.
+
+---
+
+## 2026-05-19 — Demo spec anchored on architecture synthesis, not the stale full-product spec
+
+**Decision.** Where the architecture synthesis (`bench-vision/benchvision-architecture-synthesis-2026-05-12.md`) and the full-product `docs/spec.md` (last updated 2026-04-24) disagree, the demo spec follows the architecture synthesis.
+
+**Alternatives considered.** Anchoring on the full-product spec; producing the demo spec without resolving the conflict.
+
+**Rationale.** The full-product spec is materially stale — it names PyQt for the HMI (architecture says Nuxt 3 / Vue 3), it lists "Software licensing / activation system" as out of scope (architecture has a complete Licensing Layer with FREE / PROFESSIONAL / ENTERPRISE tiers), and predates the DARCSI rebrand. The architecture synthesis is 18 days newer and reflects the design-reference docs that have been read in full. Producing a demo spec against the older full-product spec would amplify staleness; producing it against the architecture synthesis aligns with where the product actually is.
+
+**Source.** Direct comparison of the two documents, 2026-05-19.
+
+**Affects.** `spec.md` §8 (technical direction); also recommends logging full-product spec rewrite as a follow-on TASKS.md item.
+
+---
+
+## 2026-05-19 — Simulation is a configuration of BenchVision, not a fork
+
+**Decision.** The demo simulation uses the production BenchVision software stack unchanged at the layer boundary. The only substitution is the HAL driver registry — configured with a simulator driver instead of NI-DAQmx or Modbus drivers. No `if demo_mode:` branch lives in the production code.
+
+**Alternatives considered.** A separate `bench-vision-demo` codebase; a `demo_mode` flag in the production codebase that toggles behaviour.
+
+**Rationale.** A fork drifts. A `demo_mode` flag scatters demo-only behaviour across production code. Configuration / driver substitution keeps the demo honest — the demo is the production code path with one driver swapped, which is also the precise behaviour the production HAL abstraction was designed to enable. This decision is what makes the demo simulation simultaneously a demo *and* the end-to-end integration test the production stack would otherwise lack until Phase 3 hardware arrives.
+
+**Source.** Pix's framing in the Workflow 01 brief plus the production architecture synthesis HAL design notes.
+
+**Affects.** `spec.md` §8; `out-of-scope.md` §C (the explicit "do not branch the codebase" rule); `features.md` feature 2.
+
+---
+
+## 2026-05-19 — Generic data only; no real Komatsu IP or customer data
+
+**Decision.** All canned content in the demo — session history, performance curves, certificate worked examples, sample test sequences — uses generic synthetic data. No real Komatsu component identifiers, no real customer job numbers, no real prospect data is embedded in the demo machine.
+
+**Alternatives considered.** Using obfuscated versions of real data for credibility; using real Komatsu-style curves with serial numbers masked.
+
+**Rationale.** Confidentiality and the personal-capacity structure of the founding partnership. Devon's father runs Specialised Steering; the partnership documents structurally exclude associated companies from accessing partnership IP. A touring demo machine carrying real workshop data is the worst possible breach surface. Generic data that looks real is achievable; the credibility gap relative to real data is small in front of audiences who do not have a Komatsu testing background.
+
+**Source.** Reading of `DARCSI_OVERVIEW.md` §8 (founding partnership structure) plus `bench-vision/CLAUDE.md` §9 (IP and confidentiality).
+
+**Affects.** `spec.md` §9; `out-of-scope.md` §B2; `features.md` feature 10.
+
+---
+
+## 2026-05-19 — FF27 / commercial-vision content excluded from the demo simulation
+
+**Decision.** FF27 and the commercial-vision framing are not in scope of the demo simulation surface.
+
+**Alternatives considered.** Including FF27 markers in the licensing reference screen or splash.
+
+**Rationale.** Per the Workflow 01 brief and the prior moog-willie call notes. Commercial-vision content lives in commercial conversations, not in the demo simulation surface that any prospect, distributor, or investor sees.
+
+**Source.** Workflow 01 brief from Pix, 2026-05-19; `bench-vision/.../moog-willie-call-notes.md` line 56.
+
+**Affects.** `out-of-scope.md` §B1; brand-identity decisions in `spec.md` §6.
+
+---
+
+## 2026-05-25 — Torque pump displacement (Vg) flag: awaiting Devon's spec sheet
+
+**Decision.** The `TorqueChannel` formula (T = P × Vg / 62.8) uses Vg = 95 cc/rev, extrapolated from Devon's estimate "95 litres/min at 1000 RPM". Devon's V2 reference point (250 bar → 590 Nm) places the required Vg at ~148 cc/rev — a significant gap. The 95 cc/rev value is left in place as a placeholder. **This value must be replaced once Devon provides the manufacturer test sheet.**
+
+**Alternatives considered.** Adjusting Vg upward to fit the reference point without confirmation from Devon. Rejected — the reference point may be from a different pump than the most common unit Devon uses.
+
+**Rationale.** Devon's flow reference points (V1) sit exactly on the theoretical line with the current slope, giving high confidence in the flow model. The torque gap is large enough to indicate a wrong Vg rather than noise. Waiting for the spec sheet is preferable to guessing; the change is a one-line update (`PUMP_DISPLACEMENT_CC_PER_REV`).
+
+**Source.** Visual inspection of the clean-run characteristic curve PNG, 2026-05-25. Devon has been asked for the test sheet.
+
+**Affects.** `bench_simulator.py` `TorqueChannel.PUMP_DISPLACEMENT_CC_PER_REV`; characteristic curve `t_theory` line in `bench_dashboard.py`.
+
+---
+
+## 2026-05-25 — `--clean` CLI flag added for fault-free demo runs
+
+**Decision.** `bench_dashboard.py` accepts a `--clean` flag that disables fault injection and runs a full 120-second nominal cycle. Default (no flag) retains the fault-injection demo at t=80s. Both post-run plots are generated in both modes; in clean mode the waveform has no fault shading and the characteristic curve uses the full 120s of data.
+
+**Alternatives considered.** A `NO_FAULT` constant in the file requiring a manual edit. Rejected — a CLI flag lets the operator choose mode at run time without touching source.
+
+**Rationale.** The clean run is needed for sharing smooth characteristic curves with Devon before the acceptance envelope is confirmed. The fault-injection run remains the demo default. Both modes need to co-exist without code changes between runs.
+
+**Source.** Pix's request, 2026-05-25.
+
+**Affects.** `bench_dashboard.py` `run_dashboard()`; post-run plots.
+
+---
+
+## 2026-05-25 — Per-channel identity colours replace state-derived border styles
+
+**Decision.** Each sensor channel has a fixed identity colour (Pressure=blue, Flow=green, Temperature=magenta, Torque=cyan, Speed=yellow) applied consistently to panel border, panel title, engineering value, sparkline, and history graph line. Fault state overrides all to red. The former `STATE_BORDER` dict is replaced by `CHANNEL_COLORS`.
+
+**Alternatives considered.** State-only colour coding (border changes colour with state). Retained only for fault override; clean states now carry channel identity instead of a generic "running" green.
+
+**Rationale.** Identity colours let an operator instantly locate a specific channel's data across every surface — panel, sparkline, and history graph — without reading labels. The history graph is particularly improved: five colour-coded lines are distinguishable at a glance. Dark terminal background required for full colour fidelity.
+
+**Source.** Pix's feedback after initial fault-only panel colouring, 2026-05-25.
+
+**Affects.** `bench_dashboard.py` `CHANNEL_COLORS`, `channel_panel()`, `sparkline()`, `history_graph()`, `save_waveform_plot()`.
+
+---
+
+## 2026-05-25 — FlowChannel redesigned as pressure-derived channel
+
+**Decision.** `FlowChannel` no longer runs an independent ramp cycle. Flow is derived continuously from live pressure readings using the inverse pump characteristic confirmed by Devon (Video 1): Q(P) = 245 − 0.5 × P (L/min). Channel state mirrors the pressure channel. A `_pressure_ref` is injected at `start_test_cycle()`. The architecture mirrors `TorqueChannel`.
+
+**Alternatives considered.** Keeping flow as an independent ramp (previous model). Rejected — it produced flow rising simultaneously with pressure, which is physically wrong for a hydraulic pump and immediately apparent to any domain expert.
+
+**Rationale.** Devon's walkthrough (Video 1, 2026-05-25) confirmed that flow falls as pressure increases — the fundamental pump volumetric-efficiency characteristic. The extrapolated model (245 L/min at zero load, 0.5 L/min/bar slope) fits both of Devon's reference readings: 50 bar → 220 L/min ✓ and 200 bar → 145 L/min ✓. The resulting waveform and characteristic curve correctly show the inverse X-shape Devon described.
+
+**Source.** Devon's video walkthroughs (WhatsApp, 2026-05-25); notes in `devon-videos/devon-graph-walkthrough-notes.md`.
+
+**Affects.** `bench_simulator.py` `FlowChannel` (complete rewrite); `BenchSimulator.start_test()`; characteristic curve plot.
+
+---
+
+## 2026-05-25 — Pump characteristic curve added as second post-run plot
+
+**Decision.** After each run, `bench_dashboard.py` generates a second matplotlib figure: the pump characteristic curve with pressure on the X axis, flow (green, downward) on the left Y axis, and torque (cyan, upward) on the right Y axis. Theoretical lines are overlaid; Devon's reference data points are plotted as diamonds; a ±15 L/min acceptance envelope is drawn as a placeholder pending Devon's actual manufacturer spec limits.
+
+**Alternatives considered.** Including the characteristic curve in the waveform figure as a sixth subplot. Rejected — different axis types (time-series vs pressure-domain) do not share an X axis and would be misleading together.
+
+**Rationale.** The characteristic curve is the primary quality-assessment graph Devon described (Videos 1–2). It shows pass/fail against the acceptance envelope at a glance and directly matches the manufacturer test sheet format Devon's customers use. The ±15 L/min band is an explicit placeholder; a `TODO` comment in the code and this log entry ensure it is replaced when Devon provides the spec sheet.
+
+**Source.** Devon's video walkthroughs (WhatsApp, 2026-05-25); Pix's request, 2026-05-25.
+
+**Affects.** `bench_dashboard.py` `save_characteristic_curve()`; `run_dashboard()` post-run block.
+
+---
+
+## Pending decisions (open questions in `spec.md` §11)
+
+These are recorded in the spec's Open Questions table and will move into this log as they resolve. Listed here as a shortcut:
+
+- Q-D1 — reset semantics (manual-only vs auto-idle)
+- Q-D2 — scenario count beyond the two-minimum
+- Q-D3 — session history depth (count of pre-populated past runs)
+- Q-D4 — licensing reference screen content source of truth
+- Q-D5 — certificate worked-example data choice (generic vs obfuscated real)
+- Q-D6 — DARCSI logomark commissioning
+- Q-D7 — Devon witnessing demo before or after founding partnership signature
+- Q-D8 — full-product spec rewrite sequencing
+
+---
+
+## Version history
+
+| Version | Date | Changes |
+|---|---|---|
+| 0.1 | 2026-05-19 | Initial Workflow 01 Step 10 draft. Captures the twelve decisions taken during Steps 1, 4, and 5 plus the open-questions pointer to `spec.md`. |
