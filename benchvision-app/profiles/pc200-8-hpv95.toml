@@ -1,0 +1,223 @@
+# =============================================================================
+# Pump profile — Komatsu PC200-8 Main Pump (HPV95+95)
+# =============================================================================
+# This is the VALIDATION CASE for the BenchVision formula engine, not the engine
+# itself. Every pump-specific number lives here; none lives in channel code. To
+# add another pump, copy this file and change the values — no Python changes.
+#
+# Source of truth: docs/PC200-8 Main Pump Testing criteria.pdf p.14,
+#   Fig. 1 Pump Assembly Performance Specification Chart (Komatsu EEN00038-00,
+#   part 708-2L-00500). Digitised 2026-05-27. See
+#   demo-simulation/pc200-8-chart-digitised-values.md.
+#
+# Devon's spoken numbers in the WhatsApp videos are treated as SHAPE, not values;
+# the digitised chart wins ties (his own steer, v5).
+# British English throughout.
+# =============================================================================
+
+schema_version = "1.0"
+
+[identity]
+id           = "pc200-8-hpv95"
+display_name = "Komatsu PC200-8 Main Pump (HPV95+95)"
+manufacturer = "Komatsu"
+part_number  = "708-2L-00500"
+pump_series  = "HPV95"
+provenance   = "PC200-8 Main Pump Testing criteria.pdf p.14, Fig.1 (EEN00038-00); digitised 2026-05-27"
+notes        = "Variable-displacement, power-controlled tandem pump. '95' is the model series name, NOT the displacement."
+
+# -----------------------------------------------------------------------------
+# Displacement — three SEPARATE quantities, never collapsed into one field.
+# Devon (2026-05-27): theoretical 95  ->  machine-adjusted flow 112  ->  measured ~127.
+# `mode` selects which figure the flow no-load derives from. CONFIRM WITH DEVON
+# on his next pass; surfaced in decision-log 2026-05-30.
+# -----------------------------------------------------------------------------
+[displacement]
+theoretical_cc_per_rev           = 95.0
+machine_adjusted_flow_cc_per_rev = 112.0
+measured_cc_per_rev              = 127.0    # bench, adjusted to spec (informational)
+mode                             = "machine_adjusted"
+n_sections                       = 2        # tandem; both sections load the input shaft
+mech_efficiency                  = 0.90      # FALLBACK only — superseded by the [efficiency]
+                                             # curve below, which varies η with pressure so the
+                                             # torque trace matches the chart (see 2026-06-01).
+
+[speed]
+rated_rpm = 2000.0    # chart standard input-shaft speed (a 1400 rpm conversion variant exists)
+
+# -----------------------------------------------------------------------------
+# Mechanical efficiency curve — EMPIRICAL per-pump map (fitted 2026-06-01).
+# η(P) chosen so absorption_torque_from_flow_v1, fed live flow, reproduces the
+# chart's NOMINAL absorption-torque curve (269→~630 Nm). This is NOT physics — it
+# absorbs every mechanical loss the ideal P·Vg/2π model omits (Coulomb + viscous
+# friction). Friction-dominated and low at light load, peaks at the PC knee
+# (~130 bar), then falls across the destroke region as friction takes a growing
+# share. Round-trips the digitised torque curve to within ~14 Nm (<2.5%), 0–400 bar.
+# Supersedes the scalar displacement.mech_efficiency for this pump (kept as fallback).
+# Columns: [pressure_bar, mech_efficiency]
+# -----------------------------------------------------------------------------
+[efficiency]
+fallback = 0.90
+points = [
+  [0,   1.0000],   # P=0 → torque 0 regardless; η nominal
+  [25,  0.6627],
+  [50,  0.6627],   # light load: friction dominates, η low
+  [75,  0.7694],
+  [100, 0.8369],
+  [115, 0.8677],
+  [130, 0.8930],   # PC knee — η peaks
+  [138, 0.8519],   # destroke begins; flow kinks, friction share climbs
+  [150, 0.8263],
+  [170, 0.7869],
+  [200, 0.7598],
+  [240, 0.7463],
+  [270, 0.7333],
+  [300, 0.7356],
+  [358, 0.7404],
+  [400, 0.7356],   # plateau ≈ 0.74
+]
+
+[pressure_sweep]
+unit      = "bar"
+min       = 0.0
+max       = 400.0     # 39.2 MPa
+direction = "rising"  # chart: "values at pressure rise are applied"; hysteresis 1.96 MPa on drop
+
+# -----------------------------------------------------------------------------
+# Acquisition — see decision-log 2026-05-30 (sample-rate decision).
+# Acquire at 10 Hz so the PC cut-in knee and torque plateau render cleanly;
+# decimate to ~1 Hz for the operator-facing trend (Devon's Excel cadence).
+# -----------------------------------------------------------------------------
+[acquisition]
+sample_rate_hz  = 10.0
+operator_log_hz = 1.0
+
+# -----------------------------------------------------------------------------
+# Shaft — v4: diameter varies unit-to-unit even within a pump model, so prompt
+# the operator at test setup. This default is the fallback if they skip it.
+# -----------------------------------------------------------------------------
+[shaft]
+diameter_mm     = 50.0
+operator_prompt = true
+
+# -----------------------------------------------------------------------------
+# Derived channels — which named formula computes each, and its inputs.
+# -----------------------------------------------------------------------------
+[channels.flow]
+formula     = "pump_flow_pc_destroke_v1"
+output_unit = "L/min"
+[channels.flow.inputs]
+no_load_flow = 224.0      # 112 cc/rev x 2000 rpm / 1000 = 224 L/min (single section); matches chart no-load 226/222
+pc_cutin_bar = 130.0      # PC control destroke begins
+power_const  = 29120.0    # bar.L/min  (= 130 x 224), constant-power region
+
+[channels.torque]
+formula     = "absorption_torque_from_flow_v1"
+output_unit = "Nm"
+# n_sections, rpm come from the profile; pressure & flow are live refs. mech_efficiency
+# is resolved per-pressure from the [efficiency] curve in torque_inputs() (2026-06-01),
+# so this v1 formula now traces the chart's climbing-then-plateau nominal torque.
+
+[channels.power]
+formula     = "power_from_flow_pressure_v1"
+output_unit = "kW"
+
+# -----------------------------------------------------------------------------
+# Acceptance band — flow pass/fail envelope.
+# Polyline lifted from the digitised chart: the printed envelope is what the
+# certificate is judged against, so the points ARE the truth (decision-log
+# 2026-05-30).
+#
+# ✅ TRANSCRIBED 2026-06-01 (flow limit lines). Above the PC cut-in the widths were
+# previously interpolated and flagged. They are now read DIRECTLY from the two printed
+# limit lines on Fig.1 (rendered from the clean vector PDF, p.14, the same method used
+# for the torque callouts):
+#   * UPPER = the dotted "Upper limit (Reference value)" line. Printed callouts (round
+#     brackets, MPa : L/min {kgf/cm²}):  (13.6:226){138.2}, (23.6:148.5){240.2},
+#     (35.2:99.2){358.6}, (37.3:94){380}.
+#   * LOWER = the solid "Lower limit" line. Printed callouts:
+#     (10:217.1){102.2}, (24.2:108.5){249.2}, (37.3:59.3){380}.
+# Each callout's MPa value cross-checks against its {kgf/cm²} pair to within rounding,
+# the same validation used for the torque callouts. The chart's pressure gridlines are
+# in kgf/cm² (the {50}..{400} marks) — i.e. the "bar" convention this profile already
+# uses (cf. the torque band's 138/170/240/270/358/380 rows). Both lines are STRAIGHT
+# between their printed callouts (confirmed by reading the line positions off the render
+# at every gridline), so rows between callouts are the straight-line reading, not a free
+# interpolation. The band is much WIDER above the knee than the old guess: the upper line
+# is an explicit "Reference value", so it sits well above the lower limit on destroke.
+#
+# CERTIFIED CEILING: the last printed test point is 380 bar (37.3 MPa); both limit lines
+# end there (the lower-limit trace terminates at the (37.3:59.3) marker). 380 bar is the
+# certified maximum. pressure_sweep.max is 400, so 380→400 is a FLAT extrapolation
+# (limits_at() clamps to the 380 band above 380) — NOT chart data. The polyline ends at
+# 380 rather than inventing a 400-bar point.
+#
+# KNEE TIDIED 2026-06-01: re-read the lower limit below the knee off the render, anchored
+# on the printed (10:217.1){102.2} callout. The lower line's destroke knee is at the
+# callout (~102 bar, not 130): it slopes gently 222→217 (0→100) then descends straight to
+# (24.2:108.5){249.2}. Lower at 100 → 217.1 (printed); 130 → 196 (chart-read, on the
+# (10:217.1)→(24.2:108.5) segment; measured 196.5). This removes the old 130→150 kink.
+# The UPPER line legitimately stays ~226 through the knee, so it is left as-is.
+#
+# CALLOUT NOTE: the (24.2:108.5){249.2} pressure pair is internally ~1% inconsistent
+# (24.2 MPa = 246.8 kgf/cm², but {249.2} is printed) — a likely source typo (24.2 for
+# ~24.5 MPa). Every other flow callout cross-checks to <0.5%. The flow value 108.5 is not
+# in doubt; the marker sits on the 250 kgf/cm² gridline, so it is recorded at the 250 row.
+# Columns: [pressure_bar, upper_L/min, lower_L/min]
+# -----------------------------------------------------------------------------
+[acceptance.flow]
+mode   = "polyline"
+points = [
+  [0,   226,   222  ],   # no-load (chart envelope)
+  [50,  226,   220  ],   # near no-load
+  [100, 225,   217.1],   # LOWER printed: (10:217.1){102.2} — lower-limit knee sits here
+  [130, 226,   196  ],   # lower on (10:217.1)→(24.2:108.5) segment (chart-read); upper ~flat 226
+  [150, 217,   181  ],   # chart limit lines (straight segments below)
+  [200, 179,   145  ],
+  [240, 148.5, 116  ],   # UPPER printed: (23.6:148.5){240.2}
+  [250, 144,   108.5],   # LOWER printed: (24.2:108.5){249.2}
+  [300, 123,   90   ],
+  [350, 103,   71   ],
+  [358, 99.2,  68   ],   # UPPER printed: (35.2:99.2){358.6}
+  [380, 94,    59.3 ],   # both printed: (37.3:94){380} / (37.3:59.3){380} — certified max
+]
+
+# -----------------------------------------------------------------------------
+# Acceptance band — absorption-torque reference (NOMINAL curve).
+# Read DIRECTLY from the printed callout boxes on the clean Fig.1 PDF (2026-06-01),
+# each value cross-checked against its printed {kgm} pair. See the 2026-06-01 update
+# in demo-simulation/pc200-8-chart-digitised-values.md.
+#
+# This is the manufacturer's NOMINAL absorption-torque curve — the main solid trace,
+# NOT a limit line. It rises to the PC knee (~130 bar) then plateaus at ~627 Nm.
+#
+# ⚠ CALIBRATION PENDING — upper == lower == nominal here on purpose. The chart's
+# separate "Torque Upper Limit" / lower-limit lines have NOT been transcribed yet, so
+# we do NOT invent a tolerance band. Treat this as the reference curve for calibrating
+# the torque formula, NOT as live pass/fail (a zero-width band fails everything by
+# design — that is the flag, so nobody trusts it as a real envelope prematurely).
+#
+# Why this matters: absorption_torque_from_flow_v1 currently plateaus FLAT at 515 Nm
+# (constant `mech_efficiency = 0.90`). The chart climbs to ~627 because real efficiency
+# falls on destroke (~0.85 at the knee → ~0.74 at 400 bar). Engine and chart agree at
+# the 130-bar knee; the gap is entirely above it.
+#
+# Pump-specific chart values belong here in the profile; operator-variable quantities
+# (e.g. shaft diameter, which the software cannot know) stay operator-prompted — see
+# [shaft] above. The software formulates from those inputs; it does not assume them.
+#
+# Columns: [pressure_bar, upper_Nm, lower_Nm]   (upper==lower==nominal; see warning)
+# -----------------------------------------------------------------------------
+[acceptance.torque]
+mode   = "polyline"
+points = [
+  [0,     0,   0],     # no load
+  [50,  269, 269],     # chart callout (4.9 MPa, 27.5 kgm)
+  [138, 544, 544],     # chart callout (13.6 MPa, 55.5 kgm)
+  [170, 589, 589],     # chart callout (16.7 MPa, 60.1 kgm)
+  [240, 621, 621],     # chart callout (23.6 MPa, 63.3 kgm)
+  [270, 632, 632],     # chart callout (26.5 MPa, 64.5 kgm)
+  [300, 630, 630],     # chart callout (29.4 MPa, 64.2 kgm)
+  [358, 626, 626],     # chart callout (35.2 MPa, 63.8 kgm)
+  [380, 630, 630],     # chart callout (37.3 MPa, 64.2 kgm) — max test pressure
+]

@@ -1,0 +1,25 @@
+# BenchVision — development / digitising tooling
+# =============================================================================
+# This app folder is benchvision-app/ (one level under the repo root). These are NOT
+# runtime dependencies of the formula engine (which is stdlib-only: tomllib +
+# dataclasses). They are the tools used to:
+#   * digitise the manufacturer chart PDFs (render Fig. 1 p.14 at high zoom and read
+#     the printed callout boxes) — see ../demo-simulation/pc200-8-chart-digitised-values.md
+#   * render the validation overlays in validate_flow_refactor.py (written to
+#     ../demo-simulation/)
+#
+# Install into the repo's venv so PDF-digitising and the overlays are reproducible.
+# From the repo root:
+#   python3 -m venv .venv            # if not already present
+#   .venv/bin/python -m pip install -r benchvision-app/requirements-dev.txt
+#
+# It also pins the LIVE DASHBOARD's display deps (rich + plotext) so the simulation
+# Devon records is reproducible from a clean checkout. The formula engine + tests
+# themselves stay stdlib-only.
+#
+# Pinned to the versions used on 2026-06-01 (Python 3.13).
+# =============================================================================
+pymupdf==1.27.2.3      # fitz — render chart PDF pages to high-res images for digitising
+matplotlib==3.10.9     # validation overlays + dashboard waveform / characteristic plots
+rich==15.0.0           # live dashboard TUI (bench_dashboard.py)
+plotext==5.3.2         # in-terminal history graph in the live dashboard
