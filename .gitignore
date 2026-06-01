@@ -13,3 +13,11 @@ discovery/
 docs/
 observations/
 .vercel
+
+# Python artifacts (in case any run outside benchvision-app/)
+__pycache__/
+*.pyc
+.venv/
+
+# Generated demo outputs
+benchvision_*.png

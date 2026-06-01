@@ -1,8 +1,8 @@
 # BenchVision — Project Agent Context
 
-> **Last updated:** 2026-04-24
+> **Last updated:** 2026-05-20
 > **Session tool:** Cowork (Claude desktop). File tools use host paths.
-> **Bash paths:** `/sessions/amazing-epic-davinci/mnt/ai-recruiter/hydraulic testbench software/bench-vision/`
+> **Repo path:** `/Users/sueholder/Development/darcsi/benchvision/`
 
 ---
 
@@ -12,86 +12,104 @@
 
 | Level | Name | Description |
 |---|---|---|
-| Platform / suite | **TestVision** | Overarching software platform brand — a suite of testing products |
-| First product | **BenchVision** | The first product being built under the TestVision platform |
+| Over-arching brand / platform | **DARCSI** | Data Acquisition Reporting Compliance Security Interface — the compliance platform under which BenchVision and future products are delivered. Registered. Domain: `darcsi.io`. |
+| First product | **BenchVision** | The first product being built under the DARCSI platform |
 | Repo / code name | `bench-vision` | Kebab-case used in file names, repo, design system |
-| Domain | `benchvision.io` | Purchased — not yet hosted |
+| Product domain | `benchvision.io` | Purchased — not yet hosted |
+| GitHub organisations | `github.com/darcsi-io`, `github.com/benchvision-io` | Code-ownership and brand-control evidence |
+
+> **Brand update 2026-05-12:** DARCSI replaces the earlier "TestVision" parent-brand framing. References to TestVision in older documents are stale. The change is not yet reflected in every legacy doc — see `TASKS.md` for the rework list.
 
 ### Product details
 
 | Property | Value |
 |---|---|
-| Product | **BenchVision** (part of the TestVision suite) |
-| Tagline | Hydraulic test bench software |
-| Owner / IP | Design Develop Host (Pixie / piDev) |
+| Product | **BenchVision** (a product of the DARCSI platform) |
+| Tagline | Hydraulic test bench software · The compliance standard that scales from repair shop to enterprise |
+| Owner / IP | Design Develop Host (Susan Holder, trading as piDev) |
 | Primary audience | Hydraulic engineers, test technicians, operations managers |
-| Reference installation | Specialised Steering (Pty) Ltd — Devon Abbot |
-| Remote repo | `git@github.com:SPH73/bench-vision.git` |
+| Reference installation | Devon Abbot (in personal capacity — see legal/ proposal v9.2 onwards) |
+| Remote repo | `git@github.com:benchvision-io/bench-vision.git` |
 
-> **Naming rule:** Always refer to the suite as **TestVision** and the product as **BenchVision**.
+> **Naming rule:** **DARCSI** is the over-arching brand and platform. **BenchVision** is the first product under DARCSI.
 > In code, file names, and CSS classes use `bench-vision` (kebab-case).
-> Never conflate the two — TestVision is the umbrella; BenchVision is the product.
+> Never conflate the two — DARCSI is the platform; BenchVision is the product. References to TestVision in older documents pre-date the brand-hierarchy decision of 2026-05-12 and should be treated as historical.
 
 ---
 
 ## 2  Project Status
 
-**Phase:** Discovery / MVP — pre-Milestone 1
-**Stage:** HTML prototypes live (Vercel). Python source not yet started.
+**Phase:** Discovery / MVP — early Milestone 1
+**Stage:** HTML prototypes live (Vercel). Python formula engine + sensor simulator + live
+dashboard built and validated against the PC200-8 manufacturer chart (in `benchvision-app/`).
 
 | Deliverable | Status |
 |---|---|
 | HTML prototypes (portal, HMI, overview, roadmap, for-devon) | ✅ Live on Vercel |
 | Design system v1.1 | ✅ Complete |
-| Business Setup Reference v1.5 (TestVision) | ✅ Complete (April 2026) |
+| Business Setup Reference v1.5 (TestVision-era) | ✅ Complete (April 2026) — superseded by DARCSI rebrand; see `TASKS.md` for new-version status |
 | Hydraulic bench proposal (v5) | ✅ Complete |
 | Hydraulic bench questionnaire (v1) | ✅ Complete |
-| Python src/ (DAQ, simulator, HMI, safety, reports) | ⏳ Milestone 1 — not started |
-| Formal spec (docs/spec.md) | ⏳ Discovery phase |
+| Formula engine (`formula_registry.py`, `pump_profile.py`) | ✅ Built + unit-tested; profile-driven, version-tagged formulas |
+| PC200-8 validation case (`profiles/pc200-8-hpv95.toml`) | ✅ Flow + torque digitised from chart Fig.1; flow acceptance band = printed limit lines |
+| Sensor simulator (`bench_simulator.py`) | ✅ Built — channels derived live via the formula engine + profile |
+| Live dashboard (`bench_dashboard.py`) | ✅ Built — reads acceptance bands from the profile; flow graded, torque monitored-reference |
+| Real DAQ I/O, HMI, safety layer, report generation | ⏳ Milestone 1 — not started |
+| Formal spec (`docs/spec.md`, `demo-simulation/spec.md`) | 🚧 Drafted, evolving |
 | Architecture diagrams (docs/architecture.md) | ⏳ Discovery phase |
 
 ---
 
 ## 3  Workspace Folder Map
 
-The parent folder on disk is `hydraulic testbench software/`. Key files:
+The repo lives at `Development/darcsi/benchvision/`. Raw working materials are in the sibling folder `Development/darcsi/benchvision-working/`.
 
 ```
-hydraulic testbench software/
-├── bench-vision/                        ← Active repo (this file lives here)
+Development/
+└── darcsi/                              ← DARCSI platform root
+    ├── benchvision/                     ← Git repo (this file lives here) · deployed to Vercel
 │   ├── CLAUDE.md                        ← This file
+│   ├── TASKS.md                         ← Project-level task notes
+│   ├── DARCSI_OVERVIEW.md               ← Master brand & architecture overview
+│   ├── bench-vision-design-system.md    ← Canonical design tokens & brand (Section 10 = docx truth)
 │   ├── index.html                       ← Project portal
 │   ├── for-devon.html                   ← Partnership overview for Devon
 │   ├── hmi.html                         ← HMI reference mockup (pump bench, Install #1)
 │   ├── overview.html                    ← Platform overview & architecture
 │   ├── roadmap.html                     ← Milestone progress tracker
 │   ├── vercel.json                      ← Vercel routing (canonical — see §6)
-│   └── bench-vision-design-system.md   ← Canonical design tokens & brand (Section 10 = docx truth)
-├── TestVision_Business_Setup_Reference_v1.5_2026-04-22.docx   ← Latest business reference
-├── BenchVision_Business_Setup_Reference_v1.1_2026-04-21.pdf   ← Prior version (archived)
-├── COMPONENT-ARCHITECTURE.md           ← ⚠️ Belongs to Charitable Events Platform, not TestVision
-├── project-overview.md                 ← ⚠️ Belongs to Charitable Events Platform, not TestVision
-├── bench-vision-design-system.md       ← Copy of design system (canonical is in bench-vision/)
-├── hydraulic-bench-project.html        ← Standalone reference page
-├── hydraulic_bench_proposal_v5.docx.pdf
-├── hydraulic_bench_questionnaire_v1.docx.pdf
-├── discovery/                          ← Proposal version history
-│   ├── hydraulic_bench_proposal_v2.1.docx
-│   ├── hydraulic_bench_proposal_v2.docx
-│   ├── hydraulic_bench_reference_v1.1.docx
-│   └── ...
-├── research/                           ← Research materials
-├── recordings/                         ← Session recordings
-├── prototypes/                         ← Prototype assets
-├── legal/                              ← Legal documents
-├── claude-support/                     ← Claude session support files
-├── devon-reference/                    ← Devon-specific reference materials
-└── archive/                            ← Archived documents
+│   ├── benchvision-app/                 ← Python application (formula engine, simulator, dashboard)
+│   │   ├── formula_registry.py          ←   named, version-tagged pure formulas
+│   │   ├── pump_profile.py              ←   per-pump profile loader (TOML → engine inputs)
+│   │   ├── bench_simulator.py           ←   DAQ sensor simulator (profile-driven channels)
+│   │   ├── bench_simulator_faults.py    ←   fault-injection helpers
+│   │   ├── bench_dashboard.py           ←   live terminal dashboard + post-run plots
+│   │   ├── validate_flow_refactor.py    ←   chart-vs-engine validation (overlays → demo-simulation/)
+│   │   ├── profiles/                    ←   pump profiles (pc200-8-hpv95.toml = validation case)
+│   │   ├── tests/                       ←   unittest suite (run: cd benchvision-app && python3 -m unittest …)
+│   │   └── requirements-dev.txt         ←   pinned dev/demo tooling (pymupdf, matplotlib, rich, plotext)
+│   ├── discovery/                       ← Market-sizing and discovery outputs
+│   ├── demo-simulation/                 ← Digitisation record, validation overlays, decision log, media
+│   ├── docs/                            ← Formal spec, architecture, learning PDFs, source chart PDFs
+│   ├── legal/                           ← Partner agreement versions
+│   ├── marketing/                       ← Marketing materials
+│   └── adjacent-markets/               ← Adjacent market research
+│
+    ├── benchvision-working/             ← Raw working materials (NOT in git)
+    │   ├── claude chats/               ← Session notes, design refs, prompts
+    │   ├── devon-reference/            ← Devon hardware docs, USB contents
+    │   ├── research/                   ← General research + B-BBEE, Brian notes
+    │   ├── proposals/                  ← Proposal version history (v2, v2.1, ref v1.1)
+    │   ├── sensors-literature/         ← Sensor PDFs and calibration certificates
+    │   ├── hardware/                   ← Demo machine build notes
+    │   ├── bench-observation/          ← Bench observation stills + transcriber eval
+    │   ├── recordings/                 ← Session recordings
+    │   ├── prototypes/                 ← Prototype assets
+    │   ├── claude-support/             ← Claude session support files
+    │   └── archive/                    ← Archived documents
+    ├── benchvision-docs-mcp/           ← MCP documentation server
+    └── memory/                         ← design-principles.md
 ```
-
-> ⚠️ `COMPONENT-ARCHITECTURE.md` and `project-overview.md` in the parent folder belong to the
-> **Charitable Events Platform** (St Benedict's raffle), not TestVision. Do not modify them as
-> part of TestVision work. They should be moved to an `archive/` subfolder when convenient.
 
 ---
 
@@ -116,7 +134,7 @@ hydraulic testbench software/
 - No inline styles except dynamic JS; `rem`/`em` for font sizes
 
 ### Design System
-- **Canonical file:** `bench-vision/bench-vision-design-system.md`
+- **Canonical file:** `benchvision/bench-vision-design-system.md`
 - **Section 10 is the single source of truth for all `.docx` outputs**
 - All web tokens (colours, type, spacing, components) defined in Sections 1–9
 - Never hardcode design values — always reference the design system
@@ -185,6 +203,6 @@ When starting a session on this project:
 
 ## 10  Cross-Project Context
 
-This project sits alongside **AI Recruiter** (`ai-r-v1/`) in the same workspace folder.
-Shared task tracking is in `/Users/sueholder/Development/ai-recruiter/TASKS.md`.
-Do not conflate the two projects. They share the same workspace but are independent products.
+This project sits alongside **AI Recruiter** (`ai-recruiter/`) and **Ticketrr** (`ticketrr/`) in the same workspace folder.
+Shared task tracking is in `/Users/sueholder/Development/ticketrr/TASKS.md`.
+Do not conflate the projects. They share the same workspace but are independent products.
