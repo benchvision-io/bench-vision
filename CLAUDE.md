@@ -1,6 +1,6 @@
 # BenchVision — Project Agent Context
 
-> **Last updated:** 2026-05-20
+> **Last updated:** 2026-06-01
 > **Session tool:** Cowork (Claude desktop). File tools use host paths.
 > **Repo path:** `/Users/sueholder/Development/darcsi/benchvision/`
 
@@ -189,6 +189,27 @@ When starting a session on this project:
 5. **Safety check** — flag any safety-critical code before staging
 6. **Git status** — report staged/unstaged; suggest conventional commit message
 7. **Suggest** framework migration when HTML prototype phase is outgrown
+
+### 8A  Definition of Done — close the loop on finished work
+
+A task is **not** finished when the code/profile changes land. Before reporting it done,
+update the trackers so finished work cannot be silently re-dispatched (this is how a
+completed task got relaunched on 2026-06-01):
+
+1. **Decision-log** — add an entry to `demo-simulation/decision-log.md` (Decision /
+   Alternatives / Rationale / Source / Affects), newest at top. Annotate any earlier
+   entry the new work supersedes with a `⚠ SUPERSEDED <date>` note rather than deleting it.
+2. **TASKS.md** — tick the item(s) the work completed; correct any now-stale figures;
+   split out what genuinely remains as fresh open items.
+3. **Session-starter** — if the work came from a `SESSION_START_*.md` block, mark that
+   file `✅ COMPLETED <date> — do not relaunch` at the top. Never leave a starter that
+   re-dispatches finished work.
+4. **Digitisation record / profile** — keep `pc200-8-chart-digitised-values.md` and the
+   relevant profile in step with what was actually read from the chart.
+
+When verifying transcribed chart values, **re-read the source** (render the PDF, read the
+callouts) rather than trusting an existing transcription — the brief's "be true and real,
+don't invent values" applies to confirming prior work too.
 
 ---
 

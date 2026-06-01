@@ -20,6 +20,48 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-01 — Torque is a monitored reference, not a graded pass/fail channel (Devon V2/V3)
+
+**Decision.** Torque does **not** grade pass/fail. The pump is judged on the **flow** acceptance envelope; the torque curve is a **monitored reference** — the second characteristic plotted against pressure, watched for its rise-then-plateau shape. The chart's separate "Torque Upper Limit" line is therefore **not** transcribed into a pass/fail band, and the zero-width `[acceptance.torque]` (upper==lower==nominal) is the correct, settled design — reframed from "calibration pending" to "monitored reference by design".
+
+**Alternatives considered.** (a) Make torque a graded channel by transcribing the chart's "Torque Upper Limit" + lower line into `[acceptance.torque]` (rejected — the manufacturer sheet carries the line, but Devon, the reference operator, does not grade on it; this is a question of *channel role*, which is his call, not a value tie the chart breaks). (b) Leave the band flagged "pending" (rejected — it isn't pending; it's decided, and the "fails everything by design" label misread as unfinished work, which is precisely the stale-tracker failure §8A now guards against).
+
+**Rationale.** Devon narrates the two channels differently, and the difference *is* the answer. **Flow (V1):** *"here's my lower limit. Here's my upper limit. So as long as I'm falling in between this region, I know I'm good."* — an explicit pass/fail envelope. **Torque (V2):** *"250 bar... roughly 590 Newton meters... 100 bar... about 400 Newton meters plus."* — single readings, one value per pressure, no band. **Torque (V3):** *"as your pressure is increasing, so is your torque, eventually it's going to get to a plateau."* — a characteristic curve, not a tolerance region. The committed walkthrough notes capture the same asymmetry (flow: "the acceptance band is what determines pass/fail"; torque: "the second characteristic on the results view").
+
+**Source.** Devon WhatsApp clips 2026-05-25 — `devon-videos/transcripts/video1_17-28-04.txt`, `video2_17-30-21.txt`, `video3_17-31-48.txt`; synthesis in `devon-videos/devon-graph-walkthrough-notes.md`.
+
+**Affects.** `profiles/pc200-8-hpv95.toml` (`[acceptance.torque]` comment reframed; band unchanged — still zero-width by design), `TASKS.md` (graded-vs-reference item closed). The nominal torque curve and its `[efficiency]`-driven calibration (entry below) are unaffected — they remain the reference being plotted.
+
+---
+
+## 2026-06-01 — Flow acceptance band is the chart's printed limit lines (transcribed + independently re-verified)
+
+**Decision.** The `[acceptance.flow]` polyline above the PC cut-in is no longer interpolated. The two printed flow limit lines on Fig.1 — the dotted **"Upper limit (Reference value)"** and the solid **"Lower limit"** — were transcribed from the clean vector PDF (p.14, rendered at 12–18× via pymupdf, the same method as the 2026-06-01 torque callouts). The band vertices are now the printed round-bracket callouts (MPa : L/min {kgf/cm²}): **UPPER** `(13.6:226){138.2}`, `(23.6:148.5){240.2}`, `(35.2:99.2){358.6}`, `(37.3:94){380}`; **LOWER** `(10:217.1){102.2}`, `(24.2:108.5){249.2}`, `(37.3:59.3){380}`. Rows between callouts are straight-line readings (both lines are straight between their printed points). Lines terminate at **380 bar** (certified maximum); 380→400 is a flat extrapolation, not data.
+
+**Alternatives considered.** (a) Keep the interpolated widths flagged "to confirm" (rejected — the printed lines exist on the chart and are the certificate's pass/fail truth; interpolation was only a placeholder). (b) Invent a symmetric ±tolerance around nominal (rejected — the upper line is an explicit generous "Reference value" that sits well above the lower limit on destroke; a symmetric band would misrepresent the envelope and the brief forbids invented quantities).
+
+**Rationale / validation.** Every callout's MPa value cross-checks against its printed {kgf/cm²} pair to within rounding (1 MPa = 10.197 kgf/cm²); all seven pass, with one documented ~1% loose callout `(24.2:108.5){249.2}` (likely a source typo for ~24.5 MPa — flow 108.5 not in doubt, anchored on its {249.2}=250 gridline). `test_flow_band_tracks_chart_limits` asserts the printed callouts land on the band vertices; 19 unit tests pass. Overlay `demo-simulation/flow_refactor_validation.png` refreshed — printed upper/lower callout markers sit exactly on the shaded band edges, engine destroke curve inside the band across the whole sweep (flow chart RMS 0.74 L/min). **Independently re-verified this session**: page 14 re-rendered and all seven callouts read directly off the chart rather than trusted from the prior transcription.
+
+**Source.** `docs/PC200-8 Main Pump Testing criteria.pdf` p.14 Fig.1 (EEN00038-00, part 708-2L-00500); transcription + verification 2026-06-01; see `pc200-8-chart-digitised-values.md` §3/§5.
+
+**Affects.** `profiles/pc200-8-hpv95.toml` (`[acceptance.flow]`), `tests/test_formula_registry.py` (`test_flow_band_tracks_chart_limits`), `validate_flow_refactor.py` (overlay callouts), `pc200-8-chart-digitised-values.md` §3/§5. No formula version bump (data/profile change only). **Open:** torque pass/fail band is still a deliberate zero-width placeholder — see the follow-on below; Devon serial-block confirm (#300001–) still outstanding.
+
+---
+
+## 2026-06-01 — Torque plateau resolved: nominal reads from printed callouts (~627 Nm), efficiency-vs-pressure curve added
+
+**Decision.** The 2026-05-30 "candid gap" (engine plateau ~515 Nm vs chart) is closed. Working from the clean vector PDF, the printed absorption-torque callout boxes are now legible and each cross-checks against its `{kgm}` pair. Findings: (1) the ~629 Nm trace is the **nominal** curve, **not** an upper limit — the sheet carries separate "Upper limit (Reference value)" / "Torque Upper Limit" lines; (2) nominal **plateaus at ~627 Nm** (240–400 bar), not ~590 — Devon's spoken "590 at 250 bar" was an eyeball read one gridline low. The flat `mech_efficiency = 0.90` is too high and too rigid: a destroking pump's efficiency falls (~0.85 at the knee → ~0.74 at 400 bar). An empirical `[efficiency]` per-pressure curve was fitted so `absorption_torque_from_flow_v1`, fed live flow, reproduces the printed nominal to within ~14 Nm (<2.5%), 0–400 bar. The scalar `mech_efficiency` is retained as fallback only.
+
+**Alternatives considered.** (a) Replace the formula with a digitised torque polyline as the source of record (kept as `[acceptance.torque]` nominal reference, but the efficiency-curve route was preferred so the **formula still generates** the trace from operator-known inputs rather than a lookup table). (b) Force-fit 590 with a single tweaked η (rejected — would miss the climb above the knee and the chart shows ~627, not 590). (c) Bump the formula version (rejected — the function is unchanged; only the per-pressure η it is fed changed, which is profile data).
+
+**Rationale / validation.** `validate_flow_refactor.py` CHECK C now tracks the chart across the whole sweep; `test_torque_tracks_chart_in_full_stroke_region` (50/100/130 → 269/426/519) and `test_torque_tracks_chart_in_destroke_region` (170/240/270/300/400 → 589/621/632/630/630) both pass. The efficiency curve is labelled in the profile as empirical (absorbs Coulomb + viscous friction the ideal P·Vg/2π model omits), **not** physics.
+
+**Source.** `docs/PC200-8 Main Pump Testing criteria.pdf` p.14 Fig.1; torque-callout read 2026-06-01; `pc200-8-chart-digitised-values.md` 2026-06-01 update + §3/§5.
+
+**Affects.** `profiles/pc200-8-hpv95.toml` (`[efficiency]` curve, `[acceptance.torque]` nominal), `tests/` (two torque-tracks-chart tests), `pc200-8-chart-digitised-values.md`. **Open:** whether torque becomes a **graded** channel (transcribe the separate "Torque Upper Limit" + lower line and replace the zero-width `[acceptance.torque]` placeholder) or stays a monitored reference — needs Pix's call.
+
+---
+
 ## 2026-05-30 — TorqueChannel onto the engine (derive from live flow), PowerChannel added; dashboard curve de-hard-coded
 
 **Decision.** `TorqueChannel` now derives torque from **live flow** via `absorption_torque_from_flow_v1` — `T = P·(Q·1000/n)·sections / (20π·η)` — with sections, efficiency and rated speed from the profile and pressure/flow read live. The fixed `Vg=95`, `target_torque=575` and the ramp-fraction scaling are gone; the channel now mirrors the pressure cycle and derives every tick, exactly like FlowChannel. A new `PowerChannel` derives `P_hyd = P·Q/600` via `power_from_flow_pressure_v1`. `SpeedChannel`'s rated speed is lifted from the hard-coded 1000 rpm to the profile's `rated_rpm` (2000). `bench_dashboard.py::save_characteristic_curve` no longer hard-codes `245−0.5P`, `P×95/62.8` or the ±15 band — it draws the flow/torque lines from the registry and the acceptance band from the profile's digitised polyline.
@@ -28,6 +70,8 @@ Entries are append-only, newest at the top. Each entry records:
 
 **Rationale / validation.** `validate_flow_refactor.py` CHECK C/D + 16 unit tests (all pass). Deriving torque from live flow makes the **plateau emerge from the physics**, not a special case: torque rises linearly through the full-stroke region and lands on the digitised chart at 50/100/130 bar (errors +8/+1/+5 Nm), then plateaus once the pump is on its constant-power line. Power confirms the mechanism — flat at **48.5 kW** for every pressure ≥150 bar (spread 0.00 kW). Overlay: `demo-simulation/torque_power_validation.png`.
 
+> **⚠ SUPERSEDED 2026-06-01 — see the two 2026-06-01 entries above.** The gap is now closed: the printed nominal plateau reads **~627 Nm** (not ~590 — that was an eyeball read one gridline low), and an empirical `[efficiency]` curve in the profile makes the engine track it to <2.5%. The original text is kept below for the record.
+>
 > **Candid gap — plateau absolute value.** The engine plateaus at **~515 Nm** (the constant-hydraulic-power value); the chart's nominal torque keeps climbing to **~590 Nm** through 130→250 bar before truly flattening. That ~75 Nm (≈13%) gap is real and **expected**: in the constant-power region hydraulic power is flat, so input torque is only flat if efficiency is constant — but a destroking pump's total efficiency *falls* at partial displacement, so absorption torque creeps up. Reproducing that needs an **efficiency-vs-displacement curve**, which is **not in the digitised chart**, so I did **not** invent one to force-fit 590 (per the brief's "no invented quantities"). This is the `pc200-8-chart-digitised-values.md` §5 "plateau absolute value to be calibrated" item, now quantified. Options for Devon's next pass: (a) transcribe the chart's printed torque reference line and add an `efficiency_curve`/`torque_plateau_nm` field to the profile; (b) confirm whether his spoken "590" is the nominal trace or the chart's upper-limit reference line (the digitised doc suspected the latter).
 
 **Source.** Implementation 2026-05-30; physics + digitised torque column from `pc200-8-chart-digitised-values.md` §2–3.

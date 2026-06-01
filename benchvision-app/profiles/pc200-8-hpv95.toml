@@ -191,22 +191,27 @@ points = [
 # This is the manufacturer's NOMINAL absorption-torque curve — the main solid trace,
 # NOT a limit line. It rises to the PC knee (~130 bar) then plateaus at ~627 Nm.
 #
-# ⚠ CALIBRATION PENDING — upper == lower == nominal here on purpose. The chart's
-# separate "Torque Upper Limit" / lower-limit lines have NOT been transcribed yet, so
-# we do NOT invent a tolerance band. Treat this as the reference curve for calibrating
-# the torque formula, NOT as live pass/fail (a zero-width band fails everything by
-# design — that is the flag, so nobody trusts it as a real envelope prematurely).
+# MONITORED REFERENCE BY DESIGN — upper == lower == nominal on purpose, and this is a
+# SETTLED decision (2026-06-01), not pending calibration. Torque does NOT grade pass/fail:
+# Devon judges the pump on the FLOW envelope (V1: "as long as I'm falling in between this
+# region, I know I'm good") and reads torque as a single characteristic curve that
+# plateaus (V2: 250 bar→~590 Nm, 100 bar→~400+ Nm; V3: "eventually it's going to get to
+# a plateau") — no upper/lower band. So the chart's separate "Torque Upper Limit" line is
+# deliberately NOT transcribed into a tolerance band; the zero-width band means "reference
+# only, not graded", NOT "envelope to be filled in later". The chart still wins on VALUES;
+# channel ROLE (graded vs reference) is Devon's call. See decision-log 2026-06-01 +
+# demo-simulation/devon-videos/devon-graph-walkthrough-notes.md.
 #
-# Why this matters: absorption_torque_from_flow_v1 currently plateaus FLAT at 515 Nm
-# (constant `mech_efficiency = 0.90`). The chart climbs to ~627 because real efficiency
-# falls on destroke (~0.85 at the knee → ~0.74 at 400 bar). Engine and chart agree at
-# the 130-bar knee; the gap is entirely above it.
+# The nominal values below ARE calibrated: absorption_torque_from_flow_v1, fed the
+# [efficiency] curve above, tracks this printed nominal to <2.5% across 0–400 bar (rises
+# to the ~130 bar knee, then plateaus ~627 Nm). This polyline is the reference that
+# calibration targets; it is not a live pass/fail gate.
 #
 # Pump-specific chart values belong here in the profile; operator-variable quantities
 # (e.g. shaft diameter, which the software cannot know) stay operator-prompted — see
 # [shaft] above. The software formulates from those inputs; it does not assume them.
 #
-# Columns: [pressure_bar, upper_Nm, lower_Nm]   (upper==lower==nominal; see warning)
+# Columns: [pressure_bar, upper_Nm, lower_Nm]   (upper==lower==nominal — monitored reference)
 # -----------------------------------------------------------------------------
 [acceptance.torque]
 mode   = "polyline"
