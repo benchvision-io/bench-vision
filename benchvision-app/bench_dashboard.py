@@ -370,60 +370,49 @@ def save_waveform_plot(
 
 # ── Characteristic curve ──────────────────────────────────────────────────────
 
-def save_characteristic_curve(
-    times: list[float],
-    by_channel: dict[str, list[float]],
-    fault_time: float,
-    profile=None,
-    registry=None,
-) -> None:
+def build_characteristic_figure(
+    profile,
+    registry,
+    *,
+    flow_points=None,
+    torque_points=None,
+    scatter_size: float = 4.0,
+    scatter_alpha: float = 0.35,
+    demo_markers: bool = False,
+    title_suffix: str = "Characteristic Curve",
+):
     """
-    Generate the pump characteristic curve: pressure on the X axis,
-    flow (downward) and torque (upward) on dual Y axes.
+    Build the pump characteristic figure — pressure on X, flow (left, green) and
+    torque (right, cyan) on dual Y axes — and return a matplotlib ``Figure``.
 
-    • Only pre-fault data is used — the clean operating characteristic.
-    • Raw scatter shows the real DAQ noise.
-    • Theoretical lines come from the FORMULA ENGINE — the same registry-resolved
-      formulas the live channels use, parameterised by the pump profile. Nothing
-      pump-specific is hard-coded here any more (was Q=245−0.5P, T=P×95/62.8,
-      ±15 band — all now read from the profile / registry).
+    This is the SHARED CORE reused by both the terminal dashboard
+    (:func:`save_characteristic_curve`) and the certificate renderer
+    (``certificate.characteristic_curve_png``) — the curve is drawn once, not twice.
+
+    • Theoretical lines come from the FORMULA ENGINE — the same registry-resolved,
+      profile-parameterised formulas the live channels use. Nothing pump-specific is
+      hard-coded here.
     • The acceptance band is the profile's digitised envelope, not a placeholder.
+    • Torque is a MONITORED REFERENCE line, not a graded band (decision-log
+      2026-06-01); a zero-width placeholder band is never drawn as an envelope.
+    • ``flow_points`` / ``torque_points`` are ``(pressure_bar, value)`` pairs scattered
+      over the curve: the dashboard passes a full pre-fault waveform, the certificate
+      passes the run's measured/derived operating points.
 
     Requires:  pip install matplotlib
     """
-    try:
-        import matplotlib.pyplot as plt
-        import numpy as np
-    except ImportError:
-        print("\n  matplotlib not installed — skipping characteristic curve.")
-        return
+    import matplotlib.pyplot as plt
+    import numpy as np
 
-    if profile is None or registry is None:
-        from bench_simulator import BenchSimulator
-        _s = BenchSimulator()
-        profile, registry = _s.profile, _s.registry
-
-    # ── Filter to pre-fault clean data ────────────────────────────────────────
-    pre = [(t, i) for i, t in enumerate(times) if t <= fault_time]
-    if len(pre) < 10:
-        print("\n  Not enough pre-fault data for characteristic curve — skipping.")
-        return
-
-    idx       = [i for _, i in pre]
-    pressure  = np.array([by_channel["Pressure"][i] for i in idx])
-    flow      = np.array([by_channel["Flow"][i]     for i in idx])
-    torque    = np.array([by_channel["Torque"][i]   for i in idx])
-
-    # Sort by ascending pressure for clean curve lines
-    order    = np.argsort(pressure)
-    p_s      = pressure[order]
-    f_s      = flow[order]
-    t_s      = torque[order]
+    flow_points = list(flow_points or [])
+    torque_points = list(torque_points or [])
 
     # ── Theoretical lines — straight from the formula engine ───────────────────
     flow_ref   = profile.channels["flow"].formula
     torque_ref = profile.channels["torque"].formula
-    p_theory   = np.linspace(0, max(p_s.max(), profile.pressure_sweep.max), 300)
+    observed   = [p for p, _ in flow_points] + [p for p, _ in torque_points]
+    p_max      = max([profile.pressure_sweep.max, *observed]) if observed else profile.pressure_sweep.max
+    p_theory   = np.linspace(0, p_max, 300)
     f_theory   = np.array([registry.evaluate(flow_ref, profile.flow_inputs(p)) for p in p_theory])
     # Torque uses the engine flow at each pressure (live-flow derivation).
     t_theory   = np.array([
@@ -441,13 +430,16 @@ def save_characteristic_curve(
     fig.patch.set_facecolor("#faf8f2")
     ax1.set_facecolor("#faf8f2")
     fig.suptitle(
-        f"BenchVision  ·  {profile.identity.get('display_name', 'Pump')}  ·  Characteristic Curve\n"
-        f"{datetime.now().strftime('%Y-%m-%d   %H:%M:%S')}",
+        f"BenchVision  ·  {profile.identity.get('display_name', 'Pump')}  ·  {title_suffix}",
         fontsize=12, fontweight="bold", y=1.01,
     )
 
     # ── Flow (left Y axis, green) ──────────────────────────────────────────────
-    ax1.scatter(p_s, f_s, color="green", s=4, alpha=0.35, label="Flow — measured")
+    if flow_points:
+        fp = np.array([p for p, _ in flow_points])
+        fv = np.array([v for _, v in flow_points])
+        ax1.scatter(fp, fv, color="green", s=scatter_size, alpha=scatter_alpha,
+                    label="Flow — measured", zorder=4)
     ax1.plot(p_theory, f_theory, color="green", linewidth=2.0,
              label=f"Flow — engine ({flow_ref})")
     ax1.fill_between(p_theory, f_lower, f_upper,
@@ -467,14 +459,18 @@ def save_characteristic_curve(
 
     # ── Torque (right Y axis, cyan) ────────────────────────────────────────────
     ax2 = ax1.twinx()
-    ax2.scatter(p_s, t_s, color="cyan", s=4, alpha=0.35, label="Torque — measured")
+    if torque_points:
+        tp = np.array([p for p, _ in torque_points])
+        tv = np.array([v for _, v in torque_points])
+        ax2.scatter(tp, tv, color="cyan", s=scatter_size, alpha=scatter_alpha,
+                    label="Torque — measured", zorder=4)
 
     # Torque is a MONITORED REFERENCE curve, not a graded pass/fail channel. The
     # profile's [acceptance.torque] band is a zero-width placeholder on purpose
     # (upper == lower == nominal) until the chart's torque limit lines are transcribed.
-    # Read the band from the profile and decide how to render: a zero-width band must
-    # NOT be drawn as an envelope (it would "fail" every sample) — show torque as a
-    # reference line. If a real graded band (upper > lower) is ever added, shade it.
+    # A zero-width band must NOT be drawn as an envelope (it would "fail" every
+    # sample) — show torque as a reference line. If a real graded band (upper >
+    # lower) is ever added, shade it.
     tq_band   = profile.acceptance.get("torque")
     tq_graded = (
         tq_band is not None
@@ -497,10 +493,11 @@ def save_characteristic_curve(
     ax2.set_facecolor("#faf8f2")
 
     # ── Devon's spoken reference reads (illustrative — his eyeball values) ──────
-    ax1.plot([50, 200], [220, 145], "gD", markersize=7,
-             label="Devon's flow reads (V1)", zorder=5)
-    ax2.plot([100, 250], [400, 590], "cD", markersize=7,
-             label="Devon's torque reads (V2)", zorder=5)
+    if demo_markers:
+        ax1.plot([50, 200], [220, 145], "gD", markersize=7,
+                 label="Devon's flow reads (V1)", zorder=5)
+        ax2.plot([100, 250], [400, 590], "cD", markersize=7,
+                 label="Devon's torque reads (V2)", zorder=5)
 
     # ── Combined legend ────────────────────────────────────────────────────────
     lines1, labels1 = ax1.get_legend_handles_labels()
@@ -510,7 +507,57 @@ def save_characteristic_curve(
         loc="center right", fontsize=8, framealpha=0.9,
     )
 
-    plt.tight_layout()
+    fig.tight_layout()
+    return fig
+
+
+def save_characteristic_curve(
+    times: list[float],
+    by_channel: dict[str, list[float]],
+    fault_time: float,
+    profile=None,
+    registry=None,
+) -> None:
+    """
+    Generate the pump characteristic curve from a dashboard run and save it as a
+    timestamped PNG (then show it interactively).
+
+    • Only pre-fault data is used — the clean operating characteristic.
+    • Raw scatter shows the real DAQ noise.
+    • Delegates the actual drawing to :func:`build_characteristic_figure` (the shared
+      core also used by the certificate renderer).
+
+    Requires:  pip install matplotlib
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("\n  matplotlib not installed — skipping characteristic curve.")
+        return
+
+    if profile is None or registry is None:
+        from bench_simulator import BenchSimulator
+        _s = BenchSimulator()
+        profile, registry = _s.profile, _s.registry
+
+    # ── Filter to pre-fault clean data ────────────────────────────────────────
+    pre = [(t, i) for i, t in enumerate(times) if t <= fault_time]
+    if len(pre) < 10:
+        print("\n  Not enough pre-fault data for characteristic curve — skipping.")
+        return
+
+    idx       = [i for _, i in pre]
+    pressure  = [by_channel["Pressure"][i] for i in idx]
+    flow      = [by_channel["Flow"][i]     for i in idx]
+    torque    = [by_channel["Torque"][i]   for i in idx]
+
+    fig = build_characteristic_figure(
+        profile, registry,
+        flow_points=list(zip(pressure, flow)),
+        torque_points=list(zip(pressure, torque)),
+        demo_markers=True,
+        title_suffix=f"Characteristic Curve\n{datetime.now().strftime('%Y-%m-%d   %H:%M:%S')}",
+    )
 
     # ── Save ───────────────────────────────────────────────────────────────────
     stamp    = datetime.now().strftime("%Y%m%d_%H%M%S")
