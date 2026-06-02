@@ -509,6 +509,80 @@ class RunRecord:
 
 
 # ---------------------------------------------------------------------------
+# The mutable build-up half (build-up-then-freeze)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class RunRecordBuilder:
+    """
+    The mutable build-up half of the **build-up-then-freeze** pattern flagged in the
+    2026-06-02 forward note: a real run *accumulates* results as the sequencer executes,
+    but the audit artefact must end up frozen. This builder collects results during a
+    run, then :meth:`finish` seals the immutable :class:`RunRecord`.
+
+    It holds **no judgement of its own**. Grading is decided upstream (the sequencer
+    knows flow-vs-band, torque-as-monitored-reference, which cleanliness stage grades)
+    and the honest four-state verdict still falls out of the frozen ``RunRecord``. The
+    builder only accumulates and freezes — so a silently-wrong pass cannot originate
+    here. ``mark_aborted`` records *why* a run stopped (the audited abort); it does not
+    fabricate a verdict — the sequencer appends an ungradeable graded result so the
+    sealed record reads INCOMPLETE, never a clean pass.
+    """
+
+    id: str
+    profile: str
+    dut_serial: str
+    operator: str
+    po_number: str
+    purpose: TestPurpose
+    mode: str = "training"
+    started_at: str | None = None
+    notes: str = ""
+    channel_results: list[ChannelResult] = field(default_factory=list)
+    cleanliness_results: list[CleanlinessResult] = field(default_factory=list)
+    _aborted: bool = field(default=False, init=False)
+
+    def start(self, started_at: str | None = None) -> "RunRecordBuilder":
+        """Stamp the (contemporaneous, UTC) start time. Returns ``self`` for chaining."""
+        self.started_at = started_at or utc_now_iso()
+        return self
+
+    def add_channel_result(self, result: ChannelResult) -> None:
+        self.channel_results.append(result)
+
+    def add_cleanliness_result(self, result: CleanlinessResult) -> None:
+        self.cleanliness_results.append(result)
+
+    def mark_aborted(self, reason: str) -> None:
+        """Record that the run stopped before completing (an audited abort is a real
+        outcome). Appends the reason to ``notes``; the verdict stays the record's call."""
+        self._aborted = True
+        entry = f"ABORTED: {reason}"
+        self.notes = f"{self.notes}\n{entry}".strip() if self.notes else entry
+
+    @property
+    def aborted(self) -> bool:
+        return self._aborted
+
+    def finish(self, finished_at: str | None = None) -> RunRecord:
+        """Seal the accumulated results into the frozen :class:`RunRecord`."""
+        return RunRecord(
+            id=self.id,
+            profile=self.profile,
+            dut_serial=self.dut_serial,
+            operator=self.operator,
+            po_number=self.po_number,
+            purpose=self.purpose,
+            mode=self.mode,
+            started_at=self.started_at,
+            finished_at=finished_at or utc_now_iso(),
+            channel_results=tuple(self.channel_results),
+            cleanliness_results=tuple(self.cleanliness_results),
+            notes=self.notes,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Persistence seam (no SQLite this session — Protocol is the seam)
 # ---------------------------------------------------------------------------
 
@@ -548,6 +622,7 @@ __all__ = [
     "CleanlinessResult",
     "RunVerdict",
     "RunRecord",
+    "RunRecordBuilder",
     "RunRecordRepository",
     "JsonFileRunRecordRepository",
 ]
