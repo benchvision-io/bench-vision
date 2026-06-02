@@ -20,6 +20,28 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-02 — The run record: per-run spine, JSON sidecar, source-agnostic results
+
+**Decision.** Built the **test-run record** (`benchvision-app/run_record.py` + `tests/test_run_record.py`, 31 tests) — the spine that joins which *model* (profile id), which *unit* (`dut_serial`), *why* (purpose), and the resulting *verdicts*. Implements the `test-purpose-schema-sketch` as-is: a self-contained `TestPurpose` value object (`intent` / `repair_stage` / `context`, string-enums validated in `__post_init__`) with the four derived properties (`deviations_expected`, `grades_pass_fail`, `signoff_required`, `certificate_class`); a frozen `RunRecord` carrying the identity fields, `purpose`, a `mode` (training | live), UTC timestamps, and the results. Cleanliness types are **reused** from `cleanliness.py`, not duplicated. Several deliberate design choices, each load-bearing:
+
+- **Serialisation = JSON sidecar, one file per run** (not TOML). A run record is *generated per-run data*, not hand-authored *config*, so the profiles' TOML choice does not carry over. Decisive: stdlib `tomllib` is **read-only** — emitting TOML would need a new third-party writer dependency — whereas stdlib `json` round-trips natively, maps the nested result vectors cleanly (tuples↔lists), and is the natural staging format ahead of the SQLite layer. The sketch's TOML block is kept as a human-readable illustration of the *shape*; the persisted artefact is JSON.
+- **Results are source-agnostic** (the live-mode inversion, forward-requirements §1). `ChannelResult` carries *value + pass/fail + provenance* (`measured` | `derived` | `manual`), so the **same** record serves a simulated run (`derived`, with a formula id) and a live run (`measured`, no formula) identically. The record never assumes a value was formula-generated.
+- **"Not meant to grade" vs "meant to grade but couldn't" are kept distinct** — this is where a silently-wrong pass would hide. A *monitored reference* (torque, `graded=False`) and a *recorded-only* cleanliness reading (no confirmed target → `verdict is None`) are **legitimately excluded** from the pass/fail gate. An *expected-to-grade* result that could not be evaluated (invalid/missing reading → `passed is None` / `verdict.passed is None`) is **not** excluded — it forces `overall_passed = None` (`RunVerdict` summary `INCOMPLETE`) with a note naming the offending channel. Four honest states: PASS / FAIL / NOT GRADED / INCOMPLETE.
+- **Timestamps are timezone-aware UTC ISO 8601** (ALCOA+ contemporaneous); naive or non-UTC values are rejected at construction. `utc_now_iso()` helper provided.
+- **Persistence seam left, SQLite not built.** A `RunRecordRepository` Protocol (`save` / `load`) is the seam; only `JsonFileRunRecordRepository` is implemented this session. The SQLite layer is a separate roadmap item.
+
+**Alternatives considered.** (a) Run record as TOML to match the profiles — rejected: read-only `tomllib` would force a new writer dependency for *machine* output, and run records are data, not config. (b) A single `passed: bool | None` with `None` overloaded for both "monitored reference" and "couldn't evaluate" — rejected: that overload is exactly the silent-pass trap; split into an explicit `graded` flag + the verdict evaluator's excluded-vs-ungradeable branch. (c) Embedding `intent`/results in the pump `.toml` — rejected (category error, sketch §1: per-run concept on a per-model artefact). (d) Adding serialisation to `cleanliness.py` — rejected for this slice to keep its 46-test baseline undisturbed; the reading/verdict (de)serialisers live locally in `run_record.py`.
+
+**Provisional / not fabricated.** No acceptance limits or target codes were invented. The **run-id format** (`YYYY-MM-DD-<PROFILE>-NNNNNN`) is adopted from the sketch as a documented default but is **provisional** — flagged as a new Devon question (does his existing process impose a numbering scheme?). Cleanliness `target` remains an open Devon question; the record degrades honestly to recorded-only when no target is confirmed.
+
+**Forward note (out of scope now, recorded so it isn't a surprise).** `RunRecord` is frozen — correct for an audit artefact — but a real run *accumulates* results as the sequencer executes. When the sequencer lands there will need to be a **build-up-then-freeze** step in front of this frozen shape (a mutable builder that seals into the frozen record). Deliberately not built this session.
+
+**Source.** Session 2026-06-02 (Pix as engineer-of-record); `docs/test-purpose-schema-sketch.md`, `docs/contamination-channel-sketch.md`, `docs/forward-requirements-2026-06-02.md` §1/§7. Built on branch `feat/run-record`.
+
+**Affects.** New `benchvision-app/run_record.py` + `tests/test_run_record.py` (suite 46 → 77, green). `TASKS.md` — run-record P0 item closed, run-id-format question added to Devon open points, certificate generation flagged as the recommended next item. No change to existing modules (`cleanliness.py`, `pump_profile.py`, profiles untouched). **Next:** certificate generation (Jinja2/WeasyPrint, forward-requirements §2) — the run record is the spine it renders.
+
+---
+
 ## 2026-06-01 — Pump serial block is immaterial; the engine is pump-agnostic (Devon V6)
 
 **Question put to Devon.** Confirm his pump falls in the PC200-8 **#300001–** serial block — the concern being that an earlier serial uses a different performance chart, so the wrong chart could invalidate the acceptance envelope.
