@@ -43,20 +43,12 @@
 **Stage:** HTML prototypes live (Vercel). Python formula engine + sensor simulator + live
 dashboard built and validated against the PC200-8 manufacturer chart (in `benchvision-app/`).
 
-| Deliverable | Status |
-|---|---|
-| HTML prototypes (portal, HMI, overview, roadmap, for-devon) | ✅ Live on Vercel |
-| Design system v1.1 | ✅ Complete |
-| Business Setup Reference v1.5 (TestVision-era) | ✅ Complete (April 2026) — superseded by DARCSI rebrand; see `TASKS.md` for new-version status |
-| Hydraulic bench proposal (v5) | ✅ Complete |
-| Hydraulic bench questionnaire (v1) | ✅ Complete |
-| Formula engine (`formula_registry.py`, `pump_profile.py`) | ✅ Built + unit-tested; profile-driven, version-tagged formulas |
-| PC200-8 validation case (`profiles/pc200-8-hpv95.toml`) | ✅ Flow + torque digitised from chart Fig.1; flow acceptance band = printed limit lines |
-| Sensor simulator (`bench_simulator.py`) | ✅ Built — channels derived live via the formula engine + profile |
-| Live dashboard (`bench_dashboard.py`) | ✅ Built — reads acceptance bands from the profile; flow graded, torque monitored-reference |
-| Real DAQ I/O, HMI, safety layer, report generation | ⏳ Milestone 1 — not started |
-| Formal spec (`docs/spec.md`, `demo-simulation/spec.md`) | 🚧 Drafted, evolving |
-| Architecture diagrams (docs/architecture.md) | ⏳ Discovery phase |
+> **Live status — what's open / done / next: see [`TASKS.md`](TASKS.md), the single source
+> of truth.** The deliverable-by-deliverable table that used to sit here was removed
+> 2026-06-01: duplicated status drifts (and a stale snapshot once re-dispatched finished
+> work). `TASKS.md` now owns build status; this section keeps only the stable phase/stage
+> above — per the §10A convention that status overviews are generated from their owner, never
+> hand-maintained here.
 
 ---
 
