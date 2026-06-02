@@ -20,6 +20,27 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-02 — Branch consolidation: M1 + §9A hygiene merged to `main`, strays retired
+
+**Decision.** Consolidated the unmerged stack and stray refs into a single clean `main` carrying all reviewed M1 work **plus** the §9A repo-hygiene, with no commit or stash lost and **no force-push anywhere**. Final `main` tip: **`d64276c`** (suite green, 127 tests).
+
+- **M1 onto `main` by fast-forward.** `main` (`9eec3b8`) was a linear ancestor of `feat/m1-sequencer` (`98e0b2e`), so a plain `--ff-only` advanced it — cleanliness → run-record → certificate → sequencer all land linearly. Chose ff over `--no-ff` because the feature commits are individually reviewed and named; the hygiene merge below already gives the one visible consolidation marker.
+- **§9A hygiene reconciled by a real `--no-ff` merge** of `chore/repo-hygiene` (`286ecbc`, which was based on the *old* `main`). `.gitignore` and the new `DARCSI_OVERVIEW.md` auto-merged; **CLAUDE.md conflicted and was hand-resolved**. The chore commit itself shipped *stray conflict markers* committed into CLAUDE.md (empty "Updated upstream" side around an §8A-DRY block) — these were stripped, not carried. Resolution **kept both sides**: feature-line base (§2 deliverable table + the 4-item §8A "close the loop on finished work") **+** the chore's §9A publishing policy **+** the chore's §10/§10A tracking model (which corrects the stale "shared task tracking in `ticketrr/TASKS.md`" line and the project naming → per-project `TASKS.md` is authoritative). One noted tension left for Pix: the restored §2 table is a hand-maintained status overview, which §10A says to *generate*, not hand-maintain — kept per the "everything else stays feature-line" instruction, trivially reversible.
+- **`.gitignore` gap closed.** The chore's `*.pdf` rule caught the certificate but not the run-record JSON / PNGs under `benchvision-app/demo-output/`; added `benchvision-app/demo-output/` so all generated demo run artefacts stay untracked (brief §5).
+- **Branches retired** (each only after `git branch --contains` confirmed its tip reachable from `main`): the stray `feat/sequencer` (= `286ecbc`, local + origin), `feat/run-record`, `feat/certificate` (local + origin), `feat/m1-sequencer`, `docs/2026-06-01-tracker-catchup`, and `chore/repo-hygiene`. `origin` now carries **only `main`**. This closes the "stray `feat/sequencer` left for separate reconciliation" note from the sequencer entry below.
+- **Stashes resolved, both dropped after inspection.** `stash@{1}` ("repo-hygiene: gitignore + §9A + overview") — its `.gitignore` was byte-identical to `286ecbc` and its §9A is now on `main`; nothing unique → dropped. `stash@{0}` ("stray CLAUDE.md") — its only hygiene content (§9A) is already on `main`, and applying it would *regress* CLAUDE.md (strip the 4-item §8A, revert §10 to the stale tracking line); nothing unique → dropped.
+- **Safety net.** Lightweight local tags `backup/pre-consolidation-m1` (`98e0b2e`) and `backup/pre-consolidation-hygiene` (`286ecbc`) preserve both retired tips for revert; not pushed. `main` pushed to `origin` by plain fast-forward (`9eec3b8..d64276c`).
+
+**Alternatives considered.** `--no-ff` for the M1 advance (rejected — redundant merge bubble; ff keeps the reviewed chain linear). Clobbering one CLAUDE.md side (rejected — brief required keeping both the §9A policy and the feature-line notes). History scrub / `git rm --cached` of already-committed IP docs (rejected — out of scope and contrary to §9A's "no history scrub").
+
+**Rationale.** A single `main` that carries every reviewed commit + the forward `.gitignore` guard, with strays and stashes gone, makes the repo state legible again and prevents finished work being re-dispatched off a stale branch. No history was rewritten, so `origin` stays append-only.
+
+**Source.** Branch-tidy brief (Cowork, 2026-06-02) + read-only audit of the ref graph, stash blobs, and the chore's committed CLAUDE.md.
+
+**Affects.** `CLAUDE.md` (§9A + §10/§10A now on `main`), `.gitignore`, `TASKS.md`; no `spec.md` / `features.md` / `out-of-scope.md` consequence.
+
+---
+
 ## 2026-06-02 — The test sequencer: state machine + RunRecordBuilder + end-to-end demo
 
 **Decision.** Built the **test sequencer** — the connective tissue that turns the pieces already built (channels, run record, cleanliness, certificate) into one runnable end-to-end flow. New `benchvision-app/sequencer.py` + a `RunRecordBuilder` in `run_record.py` + `benchvision-app/run_demo.py` + `tests/test_sequencer.py` (**20 tests; suite 107 → 127, green**). Built on branch **`feat/m1-sequencer`** off `feat/certificate` (see the branch-hygiene note below). One `run_demo.py --fast` now produces, from a single run: the graphs, the assembled `RunRecord` JSON, and a training-marked certificate PDF.
