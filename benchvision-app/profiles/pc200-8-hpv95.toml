@@ -226,3 +226,21 @@ points = [
   [358, 626, 626],     # chart callout (35.2 MPa, 63.8 kgm)
   [380, 630, 630],     # chart callout (37.3 MPa, 64.2 kgm) — max test pressure
 ]
+
+# -----------------------------------------------------------------------------
+# Acceptance band — fluid cleanliness (ICM contamination monitor).
+# A code-threshold acceptance, NOT a pressure-domain polyline: the measured ISO
+# 4406 code per size band must be <= the target (lower code = cleaner). Parsed into
+# a CleanlinessLimit, not an AcceptanceBand (see cleanliness.py + the contamination
+# channel sketch). The MP Filtri ICM reports the default ISO 4406:1999 three-part
+# code (>=4 / >=6 / >=14 µm).
+#
+# ⚠ PROVISIONAL target — 18/16/13 is a common hydraulic-component cleanliness spec
+# placeholder, NOT yet confirmed by Devon. Open Devon points (see contamination
+# sketch §8): the real per-pump/per-customer target; whether it grades pass/fail or
+# is recorded-only at first; and whether incoming-fluid sampling is plumbed.
+# -----------------------------------------------------------------------------
+[acceptance.cleanliness]
+mode     = "cleanliness_code"
+standard = "ISO4406:1999"
+target   = "18/16/13"

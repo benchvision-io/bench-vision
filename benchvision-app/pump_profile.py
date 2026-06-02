@@ -30,6 +30,8 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # pragma: no cover - validation on older interpreters
     import tomli as tomllib  # type: ignore[no-redef]
 
+from cleanliness import CleanlinessLimit
+
 
 # ---------------------------------------------------------------------------
 # Sub-structures
@@ -182,6 +184,7 @@ class PumpProfile:
     channels: Mapping[str, ChannelFormula]
     acceptance: Mapping[str, AcceptanceBand]
     efficiency: EfficiencyCurve | None = None
+    cleanliness: CleanlinessLimit | None = None
     source_path: Path | None = None
 
     # -- loading ------------------------------------------------------------
@@ -235,8 +238,15 @@ class PumpProfile:
             )
 
         acceptance: dict[str, AcceptanceBand] = {}
+        cleanliness: CleanlinessLimit | None = None
         for ch_name, acc_raw in raw.get("acceptance", {}).items():
             mode = str(acc_raw["mode"])
+            # Cleanliness is a code-threshold acceptance, not a pressure-domain band, so
+            # it parses into a CleanlinessLimit rather than an AcceptanceBand and is
+            # carried on its own field (see cleanliness.py).
+            if mode == "cleanliness_code" or ch_name == "cleanliness":
+                cleanliness = CleanlinessLimit.from_toml_section(acc_raw)
+                continue
             points = tuple(
                 (float(p), float(u), float(l)) for p, u, l in acc_raw.get("points", [])
             )
@@ -269,6 +279,7 @@ class PumpProfile:
             channels=channels,
             acceptance=acceptance,
             efficiency=efficiency,
+            cleanliness=cleanliness,
             source_path=source_path,
         )
 

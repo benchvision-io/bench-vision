@@ -21,6 +21,11 @@ from datetime import datetime
 
 from formula_registry import FormulaRegistry, build_default_registry
 from pump_profile import PumpProfile
+from cleanliness import (
+    CleanlinessChannel,
+    CleanlinessReading,
+    SimulatedIcmDriver,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -669,6 +674,17 @@ class BenchSimulator:
         ]
         # Derived channels carried for analysis/readings but not in the gauge layout.
         self.derived_channels = [self.power]
+
+        # Cleanliness (ICM contamination) is a DISCRETE, commanded test — not a per-tick
+        # analogue channel — so it sits outside the tick loop and is invoked as a sequence
+        # step (see run_cleanliness_test / run_cleanliness_sequence). In training/demo mode
+        # it is driven by a SimulatedIcmDriver; live mode would bind an IcmModbusDriver here
+        # instead (HAL substitution, no code branch). The pass/fail limit comes from the
+        # profile's [acceptance.cleanliness] section if present.
+        self.cleanliness = CleanlinessChannel(
+            driver=SimulatedIcmDriver(self._default_clean_reading()),
+            limit=self.profile.cleanliness,
+        )
         logger.info(
             f"BenchSimulator initialized: {len(self.channels)} gauges "
             f"+ {len(self.derived_channels)} derived @ {sample_rate_hz} Hz"
@@ -696,6 +712,78 @@ class BenchSimulator:
             ch.tick(self.dt)
         self.elapsed_time += self.dt
         self.sample_count += 1
+
+    # ------------------------------------------------------------------
+    # Cleanliness — discrete contamination test steps (outside the tick loop)
+    # ------------------------------------------------------------------
+
+    def _default_clean_reading(self) -> CleanlinessReading:
+        """
+        A plausible *passing* result for training/demo. If the profile carries a
+        cleanliness target, scripts one code cleaner than the target so it passes;
+        otherwise a sensible nominal.
+        """
+        if self.profile.cleanliness is not None:
+            t = self.profile.cleanliness.target
+            iso = (max(0, t[0] - 1), max(0, t[1] - 1), max(0, t[2] - 1))
+        else:
+            iso = (17, 15, 12)
+        return CleanlinessReading(
+            iso_code=iso, temperature_c=44.0, water_rh_pct=12.0, flow_ml_min=250.0
+        )
+
+    def run_cleanliness_test(
+        self,
+        sample_point: str = "unit_outlet",
+        reference: str = "",
+        scripted: CleanlinessReading | None = None,
+    ) -> dict:
+        """
+        Run one discrete ICM cleanliness test and grade it against the profile limit.
+
+        ``scripted`` lets a scenario inject a specific result (e.g. a dirty as-found
+        sample); when omitted the simulator's default passing reading is used. In live
+        mode this same method would drive the real ICM via its Modbus driver.
+        """
+        if scripted is not None:
+            channel = CleanlinessChannel(
+                driver=SimulatedIcmDriver(scripted), limit=self.profile.cleanliness
+            )
+        else:
+            channel = self.cleanliness
+        reading = channel.run(sample_point=sample_point, reference=reference)
+        verdict = channel.grade(reading)
+        logger.info(
+            f"Cleanliness [{sample_point}]: {reading.iso_string} -> "
+            f"{verdict.summary if verdict else 'recorded-only'}"
+        )
+        return {
+            "sample_point": reading.sample_point,
+            "iso_code": reading.iso_string,
+            "passed": verdict.passed if verdict else None,
+            "verdict": verdict.summary if verdict else "recorded-only",
+            "reading": reading,
+        }
+
+    def run_cleanliness_sequence(
+        self,
+        reference: str = "",
+        incoming: CleanlinessReading | None = None,
+    ) -> dict:
+        """
+        The standard repair-bench cleanliness sequence:
+          1. rig-supply pre-check (is the bench fluid clean enough to test against?),
+          2. optional incoming/as-found sample (the customer's fluid, if plumbed),
+          3. unit-outlet as-left sample (the repaired unit's result → certificate).
+        Returns each step keyed by sample point.
+        """
+        out = {"rig_supply": self.run_cleanliness_test("rig_supply", reference)}
+        if incoming is not None:
+            out["incoming_fluid"] = self.run_cleanliness_test(
+                "incoming_fluid", reference, scripted=incoming
+            )
+        out["unit_outlet"] = self.run_cleanliness_test("unit_outlet", reference)
+        return out
 
     def get_readings(self) -> dict:
         """Return current readings from all channels (gauges + derived) as engineering units."""
@@ -751,3 +839,14 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
     print("Test cycle complete!")
     print("=" * 80 + "\n")
+
+    # Discrete cleanliness sequence (training mode), with a dirty as-found sample to
+    # show the as-found → as-left contrast.
+    print("ICM cleanliness sequence:")
+    dirty_incoming = CleanlinessReading(
+        iso_code=(22, 20, 17), sample_point="incoming_fluid", water_rh_pct=38.0
+    )
+    results = sim.run_cleanliness_sequence(reference="PO-12345", incoming=dirty_incoming)
+    for point, r in results.items():
+        print(f"  {point:<15} {r['iso_code']:<10} {r['verdict']}")
+    print()
