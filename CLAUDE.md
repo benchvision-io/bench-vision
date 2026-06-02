@@ -220,10 +220,47 @@ don't invent values" applies to confirming prior work too.
 - Never expose this repository publicly or share access without authorisation
 - Never commit customer data, test results, or calibration records
 
+### 9A  Repo hygiene & publishing policy (decided 2026-06-02 — do not re-litigate)
+
+**This private repo is the full working store.** IP, planning, design, architecture,
+specs, and the decision-log all belong here and stay tracked. "Only what's needed to run"
+is a **publishing** concern, *not* a tracking one — do not strip working docs out of this
+repo to chase that goal.
+
+- **`.gitignore` is the forward guard.** It keeps *new* non-runnable / IP material out of the
+  repo and its history: design system, architecture-synthesis, `bv-hardware-audit/`,
+  `demo-simulation/devon-videos/`, `memory/`, `legal/`, `marketing/`, `research/`, binary
+  business docs (`*.pdf/.docx/.pages/.numbers`), and session-starter / `SESSION_*` scaffolding.
+  Kept on purpose: `DARCSI_OVERVIEW.md`, the site HTML, `vercel.json`, `benchvision-app/`.
+- **No history scrub.** As of 2026-06-02 there are no collaborators but Pix + Claude and the
+  remote is private, so already-committed docs (`CLAUDE.md`, `TASKS.md`, `demo-simulation/*.md`
+  incl. `pc200-8-chart-digitised-values.md`) **stay as they are**. Do not `git rm --cached`
+  them and do not rewrite history — without a scrub it gains nothing, and several are core
+  working files (e.g. the decision-log per §8A).
+- **If the app is ever made public:** publish only the runnable cut (site HTML, `vercel.json`,
+  `benchvision-app/`, plus the overview) to a **separate public repo**. Never make *this* repo
+  public and never force-push a history rewrite onto it.
+- **Revisit on onboarding:** the day a collaborator joins or the project goes public, re-open
+  the access / history-scrub question — until then it is settled.
+
 ---
 
 ## 10  Cross-Project Context
 
-This project sits alongside **AI Recruiter** (`ai-recruiter/`) and **Ticketrr** (`ticketrr/`) in the same workspace folder.
-Shared task tracking is in `/Users/sueholder/Development/ticketrr/TASKS.md`.
+This project sits alongside **AI Recruiter / Recruitrr** (`ai-recruiter/`), **Ticketrr**
+(`ticketrr/`) and **FF27** in the same workspace folder.
 Do not conflate the projects. They share the same workspace but are independent products.
+
+### 10A  Tracking model — BenchVision is the template
+
+The ownership model established here (§8A) is the **template for every project**:
+
+- Each project owns **one tracked `TASKS.md`** as its single source of live status (open /
+  done / next). Stable identity/architecture facts live in that project's `CLAUDE.md`.
+- A cross-project `Development/TASKS.md` is a thin **router** only — it links to each
+  project's `TASKS.md` and **never duplicates** their contents. (This supersedes the earlier
+  "shared task tracking in `ticketrr/TASKS.md`" arrangement; the per-project file is
+  authoritative.)
+- Status overviews are **generated** from the owners, never hand-maintained alongside them.
+
+(Recorded here as the convention; the other repos are not edited from this one.)

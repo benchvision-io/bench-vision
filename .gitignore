@@ -33,3 +33,61 @@ demo-simulation/**/*.m4v
 demo-simulation/devon-videos/stills/
 #   Generated validation overlays + plot exports (regenerate from benchvision-app/).
 demo-simulation/*.png
+#   Generated demo run artefacts — run-record JSON + certificate PDF/PNG (regenerate
+#   from benchvision-app/generate_sample_certificates.py / run_demo.py; never tracked).
+benchvision-app/demo-output/
+
+# =============================================================================
+# Added 2026-06-02 — keep discovery / planning / business material out of remote
+# =============================================================================
+
+# Local tooling state
+.claude/settings.local.json
+
+# Office lock & temp files (LibreOffice etc.)
+.~lock.*#
+*.tmp
+
+# Legal & contracts — sensitive, never in remote
+legal/
+
+# Marketing & research planning material
+marketing/
+research/
+
+# Binary office / iWork / data documents (business & discovery docs, anywhere)
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+*.pages
+*.numbers
+*.key
+
+# Root one-off discovery docs
+/hydraulic-bench-project.html
+
+# Dead-brand (TestVision — superseded by DARCSI); not for remote
+/TESTVISION_OVERVIEW.md
+
+# Root planning / proposal / session-scaffold markdown (not for remote)
+/benchvision-founding-partnership-proposal-*.md
+/report-format-design-reference.md
+/SESSION_START_*.md
+/SESSION_STATUS_*.md
+*session-starter*.md
+
+# IP / design / architecture / audit / source media — NOT required to run the apps
+/bench-vision-design-system.md
+/benchvision-architecture-synthesis-*.md
+bv-hardware-audit/
+memory/
+demo-simulation/devon-videos/
+
+# Kept on purpose — only what is needed to RUN the apps, plus the overview:
+#   DARCSI_OVERVIEW.md, the site HTML (index/hmi/overview/portal/roadmap.html),
+#   vercel.json, and benchvision-app/ (the Python application).
+#   Do NOT add ignore rules for these.
