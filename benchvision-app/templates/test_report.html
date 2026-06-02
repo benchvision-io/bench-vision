@@ -1,0 +1,31 @@
+{#
+  test_report.html — certificate_class == "test_report"
+  (intent: verification / qualification — the graded core for Devon's repair runs).
+
+  The acceptance anchor is the customer PURCHASE ORDER, not a wet signature
+  (test-purpose sketch §6 Q2 / §7): a verification run produces a report that CITES
+  the PO. So there is no signature ceremony here — only the accountable operator.
+#}
+{% extends "base.html" %}
+
+{% block intro %}
+  <p class="muted">
+    This report records a <strong>verification</strong> test of the unit identified below against the
+    pump model's profile acceptance band. The acceptance transaction is anchored by the cited
+    purchase order ({{ identity.po_number }}); this document is the deliverable that evidences spec.
+  </p>
+{% endblock %}
+
+{% block signature %}
+  <div class="signature">
+    <h2 class="section">Accountability</h2>
+    <div class="sig-box">
+      <div class="sig-label">Test conducted by</div>
+      <div class="sig-line"></div>
+      <div class="sig-label">{{ signature.accountable_party }} · authorised against purchase order {{ identity.po_number }}</div>
+      <p class="sig-seam">No witnessed sign-off is required for a verification report; the purchase
+        order is the acceptance anchor. (A witnessed-signature ceremony is a future capability —
+        the seam is left, not fabricated.)</p>
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{#
+  acceptance_certificate.html — certificate_class == "acceptance_certificate"
+  (intent: acceptance — a transaction act that needs a named signatory).
+
+  The signature ceremony / step-up auth / roles model are NOT built (session brief;
+  profile-authoring sketch). So we render a CLEARLY-EMPTY signature placeholder and a
+  visible caveat: until a signature is captured this certificate is *evidence*, not an
+  *accepted result* (TestPurpose.signoff_required). No signature is ever fabricated.
+#}
+{% extends "base.html" %}
+
+{% block intro %}
+  <p class="muted">
+    This certificate records an <strong>acceptance</strong> test of the unit identified below against
+    the pump model's profile acceptance band. Acceptance is a transaction act: it is only an
+    <em>accepted result</em> once a named signatory signs below.
+  </p>
+{% endblock %}
+
+{% block signature %}
+  <div class="signature">
+    <h2 class="section">Acceptance signature</h2>
+    <div class="sig-box">
+      <div class="sig-label">Accepted for / on behalf of (name &amp; role)</div>
+      <div class="sig-line"></div>
+      <div class="compare" style="margin-top:14px;">
+        <div>
+          <div class="sig-label">Signature</div>
+          <div class="sig-line"></div>
+        </div>
+        <div>
+          <div class="sig-label">Date</div>
+          <div class="sig-line"></div>
+        </div>
+      </div>
+      <p class="sig-seam">
+        ⚠ No signature captured. The signature ceremony and step-up authentication are not yet
+        implemented in BenchVision. Until a named signatory signs above, this document is
+        <strong>evidence, not an accepted result</strong>. Accountable party on record:
+        {{ signature.accountable_party }} (operator).
+      </p>
+    </div>
+  </div>
+{% endblock %}

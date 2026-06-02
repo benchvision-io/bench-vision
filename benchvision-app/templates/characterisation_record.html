@@ -1,0 +1,25 @@
+{#
+  characterisation_record.html — certificate_class == "characterisation_record"
+  (intent: validation / as-found — DATA, NOT A VERDICT).
+
+  A characterisation run does not grade (TestPurpose.grades_pass_fail is False), so its
+  overall state is NOT GRADED by construction. The framing here makes that explicit so
+  the document can never be mistaken for a pass/fail certificate. No signature block.
+#}
+{% extends "base.html" %}
+
+{% block intro %}
+  <p class="muted">
+    This is a <strong>characterisation record</strong> — it captures the unit's measured behaviour as
+    data, and deliberately does <strong>not</strong> grade pass or fail. Out-of-band points are data,
+    not failures (an as-found / validation run expects deviations). Use it to characterise the unit;
+    do not read it as an acceptance result.
+  </p>
+{% endblock %}
+
+{% block verdict_extra %}
+  <p class="muted" style="margin-top:14px;">
+    No acceptance verdict is asserted by this record. Where an acceptance or verification decision is
+    required, a separate graded run (test report or acceptance certificate) must be produced.
+  </p>
+{% endblock %}

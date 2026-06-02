@@ -14,12 +14,19 @@
 #   .venv/bin/python -m pip install -r benchvision-app/requirements-dev.txt
 #
 # It also pins the LIVE DASHBOARD's display deps (rich + plotext) so the simulation
-# Devon records is reproducible from a clean checkout. The formula engine + tests
-# themselves stay stdlib-only.
+# Devon records is reproducible from a clean checkout, and the CERTIFICATE renderer's
+# deps (Jinja2 + WeasyPrint, spec §2). The formula engine stays stdlib-only; the
+# certificate layer does not, so its tests now require these.
 #
-# Pinned to the versions used on 2026-06-01 (Python 3.13).
+# WeasyPrint needs native libraries (Pango / Cairo / GObject). On macOS:
+#   brew install pango        # pulls glib, cairo, harfbuzz, fontconfig, gdk-pixbuf
+# Confirmed rendering HTML→PDF in this venv on 2026-06-02 (Python 3.14).
+#
+# Pinned to the versions used on 2026-06-01/02 (Python 3.13/3.14).
 # =============================================================================
 pymupdf==1.27.2.3      # fitz — render chart PDF pages to high-res images for digitising
 matplotlib==3.10.9     # validation overlays + dashboard waveform / characteristic plots
 rich==15.0.0           # live dashboard TUI (bench_dashboard.py)
 plotext==5.3.2         # in-terminal history graph in the live dashboard
+jinja2==3.1.6          # certificate templating (certificate.py / templates/)
+weasyprint==68.1       # certificate HTML→PDF (needs native Pango/Cairo — see note above)

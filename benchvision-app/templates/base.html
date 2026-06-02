@@ -1,0 +1,293 @@
+{#
+  base.html — BenchVision certificate skeleton (Document theme).
+
+  Honesty contract (enforced here in the markup, not just in the context):
+    * the verdict banner shows {{ overall.state }} verbatim and is coloured by
+      overall.state_css — green ONLY when overall.is_pass;
+    * a ✓ / pass glyph appears ONLY behind overall.is_pass;
+    * a training run is watermarked across every page (is_training);
+    * torque renders as "monitored reference", never a verdict;
+    * the signature area is a clearly-empty SEAM — never a fabricated signature.
+
+  Child templates (one per certificate_class) fill: intro, verdict_extra, signature.
+  Colours are the design system's Document/Light theme + universal status colours
+  (bench-vision-design-system.md §3/§4/§5).
+#}
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>BenchVision — {{ title }} — {{ identity.run_id }}</title>
+<style>
+  :root {
+    --navy: #1B3A5C; --blue: #2E75B6; --blue-lt: #E6F1FB; --blue-md: #B5D4F4;
+    --bg: #ffffff; --bg2: #f8f7f4; --bg3: #f1efe8;
+    --text: #1a1a18; --text2: #5a5a56; --text3: #8a8a85; --gray-md: #D3D1C7;
+    /* universal status colours (§5) */
+    --pass: #3B6D11; --pass-bg: #EAF3DE; --pass-md: #C0DD97;
+    --fail: #A32D2D; --fail-bg: #FCEBEB; --fail-md: #F7C1C1;
+    --notgraded: #5F5E5A; --notgraded-bg: #F1EFE8; --notgraded-md: #D3D1C7;
+    --incomplete: #854F0B; --incomplete-bg: #FAEEDA; --incomplete-md: #FAC775;
+  }
+
+  @page {
+    size: A4;
+    margin: 18mm 16mm 20mm 16mm;
+    @bottom-center {
+      content: "BenchVision · a product of the DARCSI platform · page " counter(page) " of " counter(pages);
+      font-family: "Helvetica Neue", Arial, sans-serif; font-size: 7.5pt; color: #8a8a85;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: var(--text); font-size: 10pt; line-height: 1.45; margin: 0;
+  }
+
+  /* ── Training watermark — unmistakable, on every page ──────────────────── */
+  {% if is_training %}
+  .watermark {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-32deg); z-index: 0; pointer-events: none;
+  }
+  .watermark span {
+    font-size: 64pt; font-weight: 800; letter-spacing: 6px;
+    color: rgba(163, 45, 45, 0.12); border: 5px solid rgba(163, 45, 45, 0.16);
+    padding: 10px 40px; border-radius: 8px; white-space: nowrap;
+  }
+  {% endif %}
+  .content { position: relative; z-index: 1; }
+
+  /* ── Header ────────────────────────────────────────────────────────────── */
+  .header { border-bottom: 3px solid var(--navy); padding-bottom: 10px; margin-bottom: 4px; }
+  .brand { display: flex; justify-content: space-between; align-items: baseline; }
+  .brand .product { font-size: 16pt; font-weight: 800; color: var(--navy); letter-spacing: 0.5px; }
+  .brand .product .bv-accent { color: var(--blue); }
+  .brand .platform { font-size: 8pt; color: var(--text3); text-transform: uppercase; letter-spacing: 1.5px; }
+  h1.cert-title { font-size: 19pt; color: var(--navy); margin: 12px 0 2px 0; }
+  .cert-subtitle { font-size: 9.5pt; color: var(--text2); margin: 0 0 6px 0; }
+
+  .mode-chip {
+    display: inline-block; font-size: 8pt; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; padding: 2px 9px; border-radius: 3px; margin-top: 4px;
+  }
+  .mode-chip.live { background: var(--blue-lt); color: var(--navy); border: 1px solid var(--blue-md); }
+  .mode-chip.training { background: var(--incomplete-bg); color: var(--incomplete); border: 1px solid var(--incomplete-md); }
+
+  /* ── Verdict banner ──────────────────────────────────────────────────────── */
+  .verdict { margin: 14px 0; padding: 12px 16px; border-radius: 6px; border: 2px solid; display: flex; align-items: center; gap: 14px; }
+  .verdict .glyph { font-size: 26pt; font-weight: 800; line-height: 1; }
+  .verdict .state { font-size: 22pt; font-weight: 800; letter-spacing: 1px; }
+  .verdict .note { font-size: 9pt; margin-top: 2px; }
+  .verdict.pass { background: var(--pass-bg); border-color: var(--pass-md); color: var(--pass); }
+  .verdict.fail { background: var(--fail-bg); border-color: var(--fail-md); color: var(--fail); }
+  .verdict.notgraded { background: var(--notgraded-bg); border-color: var(--notgraded-md); color: var(--notgraded); }
+  .verdict.incomplete { background: var(--incomplete-bg); border-color: var(--incomplete-md); color: var(--incomplete); }
+
+  /* ── Section + tables ────────────────────────────────────────────────────── */
+  h2.section { font-size: 11pt; color: var(--navy); border-bottom: 1px solid var(--gray-md);
+    padding-bottom: 3px; margin: 18px 0 8px 0; text-transform: uppercase; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  .identity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; margin-top: 4px; }
+  .identity-grid .row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted var(--gray-md); }
+  .identity-grid .k { color: var(--text2); }
+  .identity-grid .v { font-weight: 600; text-align: right; }
+  .identity-grid .v.mono { font-family: "SF Mono", "Courier New", monospace; font-size: 8.5pt; }
+
+  table.results th { background: var(--navy); color: #fff; text-align: left; padding: 6px 8px; font-size: 8.5pt; font-weight: 600; }
+  table.results td { padding: 6px 8px; border-bottom: 1px solid var(--bg3); }
+  table.results tr:nth-child(even) td { background: var(--bg2); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .formula { font-family: "SF Mono", "Courier New", monospace; font-size: 7.5pt; color: var(--text3); }
+  .prov { font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); }
+
+  .status-pill { display: inline-block; font-size: 8pt; font-weight: 700; padding: 1px 8px; border-radius: 10px; }
+  .status-pill.pass { background: var(--pass-bg); color: var(--pass); }
+  .status-pill.fail { background: var(--fail-bg); color: var(--fail); }
+  .status-pill.ref { background: var(--blue-lt); color: var(--navy); }
+  .status-pill.muted { background: var(--notgraded-bg); color: var(--notgraded); }
+
+  .chart { margin: 8px 0; text-align: center; }
+  .chart img { max-width: 100%; height: auto; border: 1px solid var(--gray-md); border-radius: 4px; }
+  .chart .cap { font-size: 8pt; color: var(--text3); margin-top: 3px; }
+
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .compare .card { border: 1px solid var(--gray-md); border-radius: 5px; padding: 8px 10px; }
+  .compare .card .hd { font-size: 8pt; text-transform: uppercase; letter-spacing: 1px; color: var(--text2); }
+  .compare .card .iso { font-size: 18pt; font-weight: 800; color: var(--navy); font-family: "SF Mono", monospace; }
+
+  .signature { margin-top: 22px; }
+  .sig-box { border: 1px dashed var(--gray-md); border-radius: 5px; padding: 14px 16px; background: var(--bg2); }
+  .sig-line { border-bottom: 1px solid var(--text2); height: 26px; margin: 18px 0 4px 0; }
+  .sig-label { font-size: 8pt; color: var(--text2); }
+  .sig-seam { font-size: 8pt; color: var(--incomplete); margin-top: 8px; }
+
+  footer.alcoa { margin-top: 20px; padding-top: 8px; border-top: 1px solid var(--gray-md);
+    font-size: 7.5pt; color: var(--text3); }
+  .muted { color: var(--text3); }
+  .nowrap { white-space: nowrap; }
+</style>
+</head>
+<body>
+  {% if is_training %}
+  <div class="watermark"><span>TRAINING · NOT FOR PRODUCTION USE</span></div>
+  {% endif %}
+
+  <div class="content">
+    <header class="header">
+      <div class="brand">
+        <div class="product">Bench<span class="bv-accent">Vision</span></div>
+        <div class="platform">DARCSI platform</div>
+      </div>
+      <h1 class="cert-title">{{ title }}</h1>
+      <p class="cert-subtitle">{{ subtitle }}</p>
+      {% if is_training %}
+        <span class="mode-chip training">Training / demo — not a production result</span>
+      {% else %}
+        <span class="mode-chip live">Live bench run</span>
+      {% endif %}
+    </header>
+
+    {# ── Overall verdict — the headline, surfaced honestly ──────────────── #}
+    <div class="verdict {{ overall.state_css }}">
+      <div class="glyph">
+        {% if overall.is_pass %}✓{% elif overall.is_fail %}✗{% elif overall.incomplete %}!{% else %}–{% endif %}
+      </div>
+      <div>
+        <div class="state">{{ overall.state }}</div>
+        {% if overall.note %}<div class="note">{{ overall.note }}</div>{% endif %}
+      </div>
+    </div>
+
+    {% block intro %}{% endblock %}
+
+    {# ── Identity ──────────────────────────────────────────────────────── #}
+    <h2 class="section">Test identity</h2>
+    <div class="identity-grid">
+      <div class="row"><span class="k">Run ID</span><span class="v mono">{{ identity.run_id }}</span></div>
+      <div class="row"><span class="k">Pump model</span><span class="v">{{ identity.model_name }}</span></div>
+      <div class="row"><span class="k">Unit serial (DUT)</span><span class="v mono">{{ identity.dut_serial }}</span></div>
+      {% if identity.manufacturer %}
+      <div class="row"><span class="k">Manufacturer</span><span class="v">{{ identity.manufacturer }}</span></div>
+      {% endif %}
+      {% if identity.part_number %}
+      <div class="row"><span class="k">Chart / part no.</span><span class="v mono">{{ identity.part_number }}</span></div>
+      {% endif %}
+      <div class="row"><span class="k">Profile</span><span class="v mono">{{ identity.profile }}</span></div>
+      <div class="row"><span class="k">Operator</span><span class="v">{{ identity.operator }}</span></div>
+      <div class="row"><span class="k">Purchase order</span><span class="v mono">{{ identity.po_number }}</span></div>
+      <div class="row"><span class="k">Purpose</span><span class="v">{{ purpose.intent }} · {{ purpose.repair_stage }}</span></div>
+      {% if identity.started_at %}
+      <div class="row"><span class="k">Started (UTC)</span><span class="v mono">{{ identity.started_at }}</span></div>
+      {% endif %}
+      {% if identity.finished_at %}
+      <div class="row"><span class="k">Finished (UTC)</span><span class="v mono">{{ identity.finished_at }}</span></div>
+      {% endif %}
+    </div>
+
+    {# ── Channel results ───────────────────────────────────────────────── #}
+    {% if channels %}
+    <h2 class="section">Performance results</h2>
+    <table class="results">
+      <thead>
+        <tr>
+          <th>Channel</th><th>Operating point</th><th>Value</th>
+          <th>Result</th><th>Provenance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ch in channels %}
+        <tr>
+          <td><strong>{{ ch.label }}</strong></td>
+          <td class="num">{% if ch.pressure_display %}{{ ch.pressure_display }} bar{% else %}—{% endif %}</td>
+          <td class="num">{{ ch.value_display }} {{ ch.unit }}</td>
+          <td>
+            {% if ch.is_reference %}
+              <span class="status-pill ref">monitored reference</span>
+            {% elif ch.is_pass %}
+              <span class="status-pill pass">PASS</span>
+            {% elif ch.is_fail %}
+              <span class="status-pill fail">FAIL</span>
+            {% else %}
+              <span class="status-pill muted">not evaluated</span>
+            {% endif %}
+          </td>
+          <td>
+            <span class="prov">{{ ch.provenance }}</span>
+            {% if ch.is_derived and ch.formula %}<br><span class="formula">{{ ch.formula }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted" style="margin-top:4px;">Flow is the graded pass/fail truth. Torque is a monitored
+      reference curve, not graded (decision-log 2026-06-01).</p>
+    {% endif %}
+
+    {# ── Characteristic curve (reused dashboard plot) ──────────────────── #}
+    {% if chart_png %}
+    <h2 class="section">Characteristic curve</h2>
+    <div class="chart">
+      <img src="{{ chart_png }}" alt="Pump characteristic curve — flow and torque versus pressure">
+      <div class="cap">Measured operating points over the profile's acceptance band and the
+        formula-engine reference lines. Torque shown as a monitored reference.</div>
+    </div>
+    {% endif %}
+
+    {# ── Cleanliness ───────────────────────────────────────────────────── #}
+    {% if cleanliness %}
+    <h2 class="section">Fluid cleanliness (ISO 4406)</h2>
+    <table class="results">
+      <thead>
+        <tr><th>Sample point</th><th>Stage</th><th>ISO code</th><th>Water (% RH)</th><th>Temp (°C)</th><th>Result</th></tr>
+      </thead>
+      <tbody>
+        {% for c in cleanliness %}
+        <tr>
+          <td><strong>{{ c.sample_point_label }}</strong></td>
+          <td>{{ c.stage }}</td>
+          <td class="num mono">{{ c.iso_code }}</td>
+          <td class="num">{% if c.water_rh_pct is not none %}{{ c.water_rh_pct }}{% else %}—{% endif %}</td>
+          <td class="num">{% if c.temperature_c is not none %}{{ c.temperature_c }}{% else %}—{% endif %}</td>
+          <td>
+            {% if c.is_pass %}<span class="status-pill pass">PASS</span>
+            {% elif c.is_fail %}<span class="status-pill fail">FAIL</span>
+            {% else %}<span class="status-pill muted">{{ c.status }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if cleanliness_comparison %}
+    <div class="compare">
+      <div class="card">
+        <div class="hd">As-found · {{ cleanliness_comparison.as_found.sample_point_label }}</div>
+        <div class="iso">{{ cleanliness_comparison.as_found.iso_code }}</div>
+        <div class="muted">{{ cleanliness_comparison.as_found.status }}</div>
+      </div>
+      <div class="card">
+        <div class="hd">As-left · {{ cleanliness_comparison.as_left.sample_point_label }}</div>
+        <div class="iso">{{ cleanliness_comparison.as_left.iso_code }}</div>
+        <div class="muted">{{ cleanliness_comparison.as_left.status }}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {# ── Signature SEAM + class-specific block ─────────────────────────── #}
+    {% block signature %}{% endblock %}
+
+    {% block verdict_extra %}{% endblock %}
+
+    <footer class="alcoa">
+      {% if generated_at %}<div>Generated (UTC): {{ generated_at }}</div>{% endif %}
+      <div>{{ provenance_note }}</div>
+      <div>Accountable party: {{ signature.accountable_party }} (operator). All software, architecture
+        and IP © Design Develop Host (piDev). Certificate schema v{{ schema_version }}.</div>
+    </footer>
+  </div>
+</body>
+</html>
