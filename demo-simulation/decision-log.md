@@ -20,6 +20,166 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-03 (c) — Architectural principles surfaced by the cal/portal brainstorm
+
+Three threads from the post-Devon brainstorm captured as principles. Full scope sketches in `docs/forward-requirements-2026-06-03.md`.
+
+### 1. Offline-first is a product principle, not a workaround
+
+**Decision.** The bench is fully usable without network connectivity. Every run record, certificate PDF, supporting PDF, and audit event is written to local persistent storage the moment it exists, with no network call required to finalise. Network availability is required only for *downstream* surfaces (the customer portal, OEM telemetry push, profile-update pull) — never to complete a test or release a cert.
+
+**Rationale.** Industrial test environments (workshops in metal buildings, mine-site depots, locked-down corporate networks) cannot be assumed online. ALCOA+ requires records to be *Available* — which means eventually retrievable, not always-online. Framing this as a principle (rather than a workaround) makes "the bench is offline-first by design" part of the product story.
+
+**Implementation seam.** All persistence goes through a local store first; an `outbox/` queue of pending uploads is drained by a separate sync daemon when connectivity exists. Sync conflicts are impossible by construction because sealed run records are immutable.
+
+**Affects.** Spec.md (add offline-first to §1 principles when next touched), `forward-requirements-2026-06-03.md` §1, future outbox-sync engine (P2). README touch (added today).
+
+### 2. Sensor registry + calibration tracking is MVP scope (Tier 1)
+
+**Decision.** Each channel in the pump profile carries a `[sensor.<channel>]` block with manufacturer, model, serial, range, signal type, cal cert id, cal lab, cal date, cal due, traceability chain, and an optional local path to the cal cert PDF. The bench reads this at sequencer start; expired cal **refuses to start a graded test by default** (configurable, but the deliberate-setting requirement is not negotiable). Cert rendering:
+
+- **Main face** carries a single-line traceability statement, populated from the registry.
+- **Supporting document** carries the per-channel cal reference table.
+- **Cal cert PDFs** (when locally available) are attachable to the supporting document, releasable on request.
+
+**Why this earns MVP space.** Without a cal-traceability statement on the face, what we print is a *test report*, not a *certificate*. The pushback to Devon on calibration-on-the-cert (drafted but not sent at time of writing) hinges on this. Building the registry resolves the issue mechanically: the block is generated, not editorial. Setup cost is ~2 hours per bench at commissioning (one-time transcription from existing cal certs); per-test cost is zero.
+
+**Out of scope explicitly:** the bench does not perform calibration (Tier 4 — that's a cal lab function). Smart-sensor self-read (Tier 2) and in-situ verification runs (Tier 3) are P3, not MVP.
+
+**Affects.** `pump_profile.py` (new `SensorRegistryEntry` per channel), `sequencer.py` (startup cal-expiry check; new `ABORTED — CAL_EXPIRED` reason), `certificate.py` (face traceability statement + supporting cal table), `templates/*.html` (face block + supporting table). New tests for the cal-expiry refuse/warn matrix.
+
+### 3. DARCSI customer portal is the long-game online surface (P2/P3)
+
+**Decision (commitment to direction, not scope).** When BenchVision eventually goes online, the first customer-facing surface on `darcsi.io` is a **cert verification reading room** — a public-ish page at `darcsi.io/verify/<run-id>` (or shorter, decided before any URL is committed) reached by scanning the QR on a printed cert. It renders the same `certificate_context()` that built the PDF, tiered as: public verify view (verdict + identity + traceability statement) vs authenticated supporting view (cal details, water, temp, cleanliness, raw trace). The same privacy-of-evidence rule Devon set this morning maps directly onto the portal's two tiers.
+
+**Why decide direction now.** The QR payload decision (this morning, decision-log entry 2 §2) defaults to encoding the run-id today and migrates to a URL when the portal lands. Committing to the URL pattern *now* (even though the portal won't be built for many months) prevents the printed-QR-in-the-field backwards-compatibility headache later.
+
+**Out of scope of THIS decision.** When to build, whether to ship a hash-anchor on the cert face alongside the QR, the exact URL pattern (`/verify/`, `/cert/`, `/c/`), customer auth model. Listed in the priority table in the forward-requirements doc; not committed.
+
+### Source
+
+Conversation between Pix and Claude, 2026-06-03 PM, following Devon's WhatsApp answers earlier the same day. No external source documents — these decisions are derivative of (a) Devon's privacy-of-evidence rule established this morning, (b) the metrology-integrity reasoning behind the calibration-on-the-cert pushback, and (c) the QR payload decision.
+
+### Affects
+
+- `docs/forward-requirements-2026-06-03.md` (new — full scope sketches).
+- `TASKS.md` — three new MVP-tier items added (sensor registry + cal check + cert render); three Phase 4+ items added (outbox sync, customer portal, hash anchor).
+- `benchvision-app/README.md` — short principles section added (offline-first; cal tracking as foundation; two-layer cert).
+- Spec.md — minor touch when next opened to fold offline-first into §1 principles (not done in this session).
+
+---
+
+## 2026-06-03 (PM) — Devon answers (WhatsApp 11:22–11:26): supporting-data privacy, three-number id, cadence "naive POV"
+
+Three follow-up answers to the trimmed batched message of the same morning. Captured verbatim phrases below so the source is traceable.
+
+### 1. Water / temperature / cleanliness / calibration on the cert face — RESOLVED: SUPPORTING ONLY
+
+**Devon (11:22–11:23):**
+> "Supporting document. You can add ISO standard to main test certificate but. Oil cleanliness. Calibration certificate. Etc etc should not be available to the customer unless requested."
+
+**Decision.** Two layers on the cert artefact:
+
+- **Main test certificate (face)** — verdict, identity block, characteristic curve, per-band flow, torque (monitored reference). **ISO standard reference** (e.g. ISO 4413 / chart part number) may appear on the face as a method citation.
+- **Supporting document** — water content, fluid temperature, oil cleanliness (ISO 4406 code + per-band counts), calibration-certificate references, raw point trace, anything else. **Not shipped to the customer by default; provided only on request.**
+
+This is a privacy-of-evidence rule: the customer gets a clean acceptance certificate; the audit trail exists and is releasable on demand, not pushed by default. It also resolves the ambiguity in the current renderer — water + fluid temp are presently on the face; they move to the supporting document.
+
+**Schema/render consequences (logged, not built):**
+- `generate_certificate_pdf` produces **two** outputs per run: `main_certificate.pdf` (face only) and `supporting_document.pdf` (everything else). Both share the same `RunRecord`; the split lives in `certificate_context()` which already separates `channels`, `cleanliness`, `chart_png`, etc.
+- ISO-method block on the face is a new optional `method_reference` field on the identity strip (Devon called out "ISO standard" specifically — title plus number).
+- Defaults: cleanliness + water + temperature stay rendered into the supporting doc; the face never carries them. No conditional logic — supporting always exists, gating is at the **distribution layer**, not the render layer (we always produce both; the operator chooses what to release).
+
+### 2. Run-id / job-numbering — three numbers, two existing + one new (QR)
+
+**Devon (11:25):**
+> "Job number / Test number / QR number / Along with other customer details, example attached."
+
+**Pix clarification 2026-06-03 PM.** The "example attached" Devon referred to **is the morning's SDR-header photo** — no second image. With that constraint the three numbers map cleanly:
+
+- **Job number** = `customer_job_no` (existing on the SDR header, e.g. `JV558563`).
+- **Test number** = `assembly_job_no` (existing on the SDR header, e.g. `SSP9710`).
+- **QR number** = **new face element to be added.** Not present on Devon's existing SDR header; he is asking for it to appear on the BenchVision certificate. No semantic content specified — i.e. Devon has not said what the QR should encode.
+
+**Decision.** Adopt the two existing job numbers as already captured (no schema change). Add a **single new field** for the QR slot:
+
+- `RunRecord.qr_payload: str` — the string the QR encodes.
+- `qr_image_data_uri` rendered at certificate-render time, not stored on the record (deterministic from `qr_payload`).
+- **Default QR payload (recommended, pending Devon's confirmation in the next exchange):** the system-internal record id — i.e. the demoted `YYYY-MM-DD-<PROFILE>-NNNNNN` — because (i) it is globally unique within DARCSI, (ii) it round-trips back to the exact run-record if scanned into a future portal lookup, and (iii) it gives the `YYYY-MM-DD-<PROFILE>-NNNNNN` format a clean job (the human-facing numbers being Devon's two) without inventing a fourth number.
+
+**Alternative QR payloads considered:**
+- A portal URL (e.g. `https://darcsi.io/cert/<run-id>`) — better customer UX (scan → page) but requires the portal to exist; defer until the portal lands and re-confirm with Devon then.
+- `Job number` or `Test number` plain — rejected, not globally unique across customers.
+- A composite of `Job + Test + SDR Date` — rejected, brittle and longer than necessary.
+
+**Schema consequences (one line added to the morning capture):**
+- `RunRecord` gains: `qr_payload` (str, defaults to `record.id`).
+- `certificate_context()` gains: `qr_image_data_uri` (rendered from `qr_payload` at render time, like the characteristic chart).
+- Templates: face block adds a small QR cell adjacent to the identity strip. Position/size to be sketched, low-risk.
+
+**Re-confirm-don't-re-ask.** On the next Devon contact, show him a sample with the QR rendered against the run-id and let him object if he wants a portal URL or job-number-pair instead. Do not re-ask cold.
+
+### 3. Certificate point-table cadence — soft signal; settle on band-gridpoints (face) + full trace (supporting)
+
+**Devon (11:26):**
+> "If a transducers is 10Hz / I would calibrate it that 0.001Hz = 1 bar / Taking that ratio into account will allow for 1000 readings per test / - I am saying this from a nieve point of view / - not sure if that is how it works."
+
+**Reading of the answer.** Devon is reasoning about acquisition resolution, not the printed point-table — and is explicitly flagging he isn't sure how it works ("naive point of view, not sure if that is how it works"). The numbers don't quite line up as a calibration formula (Hz and bar are different units), but the intent is legible: he wants enough resolution that fine pressure changes are captured (~1000 readings per test). That is **already what we acquire** (10 Hz × a ~100 s test → ~1000 samples) — so the acquisition cadence settled 2026-05-30 already satisfies the resolution he's reaching for.
+
+**Decision.** No change to acquisition cadence. For the **printed face**, default to **band-gridpoint rows only** (option (a) from the batched draft) because (i) Devon expressed no preference for the printed cadence, (ii) 1000 rows on a customer-facing PDF is unreadable, and (iii) it fits the privacy-of-evidence rule from §1 above — the full trace exists, just not on the cert. The **supporting document** carries the full 1 Hz operator-display series (≈100 rows) and the per-tick 10 Hz trace is available on request.
+
+**Re-confirm rather than re-ask.** When the example image (§2) arrives, surface the gridpoint-only face layout in passing so Devon can object if he wants something denser — but do not re-ask the cadence question cold.
+
+### Source
+
+Devon WhatsApp screenshot, 2026-06-03 11:22–11:26 (single screenshot capturing four message bubbles, sent in reply to the trimmed batched draft). Verbatim phrases quoted above.
+
+### Affects
+
+- `run_record.py` — `test_number`, `qr_payload`, `qr_image_data_uri` provisional fields (do not build until "example attached" arrives).
+- `certificate.py` — split into `main_certificate` + `supporting_document` render paths sharing one `certificate_context()`; optional `method_reference` block on the face; QR rendering (provisional).
+- `benchvision-app/templates/` — new `supporting_document.html` template; face templates drop water/temp/cleanliness, gain method-reference + QR slot.
+- `TASKS.md` Devon open points — water/temp **closed** (supporting only); cadence **closed** (face = gridpoints, supporting = full trace); run-id **narrowed** (waiting on example).
+
+### Still open
+
+- QR payload semantics — provisionally the system-internal run-id; confirm with Devon by showing a sample, not by asking cold. May upgrade to a portal URL once the DARCSI customer portal lands.
+
+---
+
+## 2026-06-03 — Devon answer (SDR header photo): job-numbering scheme + customer/DUT face fields
+
+**Decision.** Adopt Devon's existing SDR header block verbatim as the certificate-face identity strip. Two outcomes:
+
+1. **Run-id / job numbering — RESOLVED.** Devon's shop uses **two** alphanumeric job numbers, both of which belong on the face as first-class fields:
+   - `customer_job_no` — customer-side reference, free-form alphanumeric (e.g. `JV558563`)
+   - `assembly_job_no` — internal repair-shop assembly reference (e.g. `SSP9710`)
+   The provisional `YYYY-MM-DD-<PROFILE>-NNNNNN` format is **demoted to a system-internal record id only** — it remains the unique key for storage and audit lookup but is **not** the human-facing number on the certificate. The two job numbers carry the human-facing identity.
+
+2. **Certificate face — customer + DUT block confirmed.** The header fields Devon expects, in his order:
+   - **Job side:** SDR Date · Customer · Customer Job No · Assembly Job No · Name of Inspector
+   - **DUT side:** Machine Model · Component Model · Component Part Nr.
+   "Machine Model" is the **parent machine** the unit came out of (e.g. `Liebherr – LTM1050-1` mobile crane); "Component Model" + "Component Part Nr." identify the unit under test (e.g. `LPV 140 Hydraulic pump`). Both must render even when blank — the layout is a fixed block, not conditional. Date format is `YYYY/MM/DD`. "Inspector" is Devon's term for the operator role.
+
+**Schema consequences** (recorded; not built this entry):
+- `RunRecord` adds: `customer` (str), `customer_job_no` (str), `assembly_job_no` (str), `sdr_date` (date, `YYYY/MM/DD` render), `machine_model` (str), `component_model` (str), `component_part_no` (str).
+- `RunRecord.operator` keeps its name in code but the **certificate face** label reads `Name of Inspector` (label-level rename, not a schema rename).
+- `RunRecord.po_number` — keep optional; Devon's header has no PO field, so do **not** put it on the face. Customer Job No carries the customer-side reference.
+- `certificate_context()` adds an `identity_header` group exposing all eight fields in Devon's order; templates render the two-table header block before the verdict strip. Blank fields render as blank cells (Devon's sheet does this).
+
+**Still genuinely open (do NOT close yet):**
+- **Water content and fluid temperature** — on the face, or supporting only? (Devon's "so far" suggests more to come; not in the header block he sent.)
+- **Component serial number** — Devon's header shows Part Nr. but no serial slot; need to confirm whether serial belongs on the face elsewhere or only in supporting data.
+- **Point-table cadence (Q1)** — per-band, per-second, or per-step. Still awaiting.
+
+**Alternatives considered.** Keeping `YYYY-MM-DD-PROFILE-NNNNNN` as the face id (rejected — Devon's two-number scheme is what his paperwork carries; matching it removes the cross-reference friction). Inferring a single "job number" by concatenation (rejected — they have different meanings; customer-side vs internal-assembly traceability).
+
+**Source.** Devon WhatsApp photo of SDR header, 2026-06-03 (sent in reply to the cadence/run-id/face-fields batched question of the same day; draft at `docs/devon-batched-questions-2026-06-03.md`). Caption: "Customer details and job number."
+
+**Affects.** `run_record.py` (schema additions per consequences above — not yet built), `benchvision-app/certificate.py` `certificate_context()` (identity_header group), `benchvision-app/templates/*.html` (header block render), `TASKS.md` (Devon open points: Q2 closed, Q3 narrowed to water/temp + serial, Q1 still open). No change to verdict logic, no change to formula engine.
+
+---
+
 ## 2026-06-02 — Branch consolidation: M1 + §9A hygiene merged to `main`, strays retired
 
 **Decision.** Consolidated the unmerged stack and stray refs into a single clean `main` carrying all reviewed M1 work **plus** the §9A repo-hygiene, with no commit or stash lost and **no force-push anywhere**. Final `main` tip: **`d64276c`** (suite green, 127 tests).
