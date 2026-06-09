@@ -20,6 +20,35 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-05 — Cleanliness traceability code on the cert + calibration cadence (Devon voice note)
+
+Source: Devon **voice note** dated 2026-06-05 17:43 (received 2026-06-03, flood week; hand-transcribed by Pix later — full text in `devon-videos/transcripts/voicenote_2026-06-05_17-43.txt`). Two threads.
+
+### 1. Cleanliness on the cert = a traceability *code*, resolved to the day
+
+**Decision.** The certificate carries a **cleanliness code** (Devon: "a code of sorts on the bottom … cleanliness code x"), not an attempt to print an instantaneous cleanliness figure pinned to the exact second of test. The code resolves to a **date (day / month / year)**; the authoritative cleanliness reading is held in the **particle-counter's own history log** (Devon's instrument is an **ICM particle counter**), retrievable by that date. Granularity is whatever the counter supports — "to the day should be fine."
+
+**Rationale (Devon's, quoted).** "It's difficult to be a hundred percent accurate to how clean the oil was at that exact point in time … but I think to the day, it should be fine. I mean, let's say I tested ten pumps within that day, that does narrow it down. So should we have any warranties, it could be ruled right down to … so we've got traceability **on our side**, which then we trace back to a date." The driver is **warranty-dispute traceability**: the code is the pointer that lets the workshop reconstruct the cleanliness evidence for a given pump if a claim arises. He is explicitly comfortable with day-level (not instant-level) resolution.
+
+**Why this fits the existing design.** Aligns cleanly with the 2026-06-03 (PM) privacy-of-evidence split: the **face** carries the lightweight pointer (code → date), the **supporting document / particle-counter history** carries the detailed cleanliness numbers, released on request. No conflict with "water/temp/cleanliness → supporting only" — the *code* is a face-legal pointer, the *values* stay in supporting.
+
+**Implementation seam.** Cleanliness code becomes a face element (short alphanumeric resolving to run date + counter-history key). Candidate: reuse the QR/run-id identity already going on the face rather than minting a second code — confirm with Devon whether he wants a *separate* human-readable cleanliness code or is happy for the existing run-id/QR to be the single traceability handle. **Do not invent the code format unilaterally** — sample-and-confirm.
+
+### 2. Calibration cadence — flow meter yearly; "what else?" tossed back to Pix
+
+**Decision (partial).** Flow-meter calibration cadence ≈ **annual** — Devon: "that's a standard, that should be done yearly, I would assume" (note the hedge — assumption, not a cited standard). This feeds the `[sensor.<channel>]` `cal_due` logic (decision-log 2026-06-03 (c) §2): a one-year default interval is a reasonable starting assumption for the flow channel, **configurable per sensor**, not hard-coded.
+
+**Genuinely open — back to Pix, not Devon.** Devon explicitly handed the scope question back: "what else would require calibration? You can inform me, I don't know." This is **ours to answer**, not his — the metrology question of which channels in the registry need scheduled calibration (pressure transducer, torque/speed sensing, temperature, the particle counter itself, etc.) and at what interval. Tracked as a new open item in `TASKS.md` (reframed as a Pix/Claude action, since Devon deferred it).
+
+### Affects
+
+- `devon-videos/transcripts/voicenote_2026-06-05_17-43.txt` (new, untracked working transcript).
+- `TASKS.md` — cleanliness-code thread captured; new "which channels need calibration + intervals" action (ours, not Devon's); flow-meter annual default noted against the sensor-registry item.
+- Sensor registry work (decision-log 2026-06-03 (c) §2): `cal_due` default interval + the cleanliness-code face element fold into that scope.
+- **Not yet settled:** whether the cleanliness code is a *separate* code or the existing run-id/QR handle — sample-and-confirm with Devon next contact.
+
+---
+
 ## 2026-06-03 (c) — Architectural principles surfaced by the cal/portal brainstorm
 
 Three threads from the post-Devon brainstorm captured as principles. Full scope sketches in `docs/forward-requirements-2026-06-03.md`.
