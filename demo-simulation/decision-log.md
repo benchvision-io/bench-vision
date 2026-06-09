@@ -20,6 +20,28 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-08 — Positioning: the certificate is the DARCSI layer, not the BenchVision MVP demo
+
+**Context.** Repeated attempts to get Devon to see the compliance certificate as *the product* (rather than "his report") keep failing, for two structural reasons: (a) every conversation frames the cert from the workshop / "your customer" angle, which re-anchors him as the owner of a personal report; and (b) the cert sits inside the MVP, so the framing argument lands squarely on the commissioning critical path. Devon's own words capture the block: *"if the customer doesn't believe my report they can go elsewhere"* — credibility-as-personal-reputation, at workshop scale. He has been shown both sample certificates (training + production) and still reads them as his, not BenchVision's.
+
+**Decision 1 — The certificate is the DARCSI platform layer, not BenchVision MVP demo scope.** To Devon, the MVP is the acquisition-and-grading bench (the live graph, pass/fail — the thing he actually wants). The certificate-as-recognised-standard is reframed as the **DARCSI** compliance layer that comes *later*. This is the existing brand hierarchy made explicit, not a new split: BenchVision = the product Devon commissions; DARCSI = the compliance standard that scales. **Cert engineering continues internally** — this is a framing/sequencing decision, not a descope. The cert leaves the *Devon-facing MVP demo*, never the codebase. Effect: the commissioning gate (and therefore signing) rests on the bench Devon values, not on him accepting the cert philosophy.
+
+**Decision 2 — Language: drop "your customer"; speak at industry scale.** "Your customer" is workshop-scale and competitive — it invites the "they can go elsewhere" reflex (true at that scale) and re-anchors Devon as owner. The certificate is industry infrastructure (cf. MOT testing station, hallmark / assay office, UKAS-accredited test report). Vocabulary moves up a level: *the sector / the industry / a recognised standard / the market*. Competitors holding BenchVision then stops being a threat and becomes the point — a standard only has value if it is widely adopted.
+
+**Decision 3 — The reveal is trigger-based, and the trigger is named: Komatsu.** You cannot argue Devon into the industry view (the "passport in the living room" problem — a passport looks like pointless bureaucracy until you hit a border). A real border teaches it. Devon has stated he wants to **approach Komatsu** — an OEM that will require documented, verifiable compliance evidence a personal report cannot supply. That is the moment he realises the cert's value (this also echoes the 2026-05-11 reframe, where his Komatsu ambition is what prompted "you're talking like a founding partner"). Prepare the cert reveal to land at/around that approach; do not spend it earlier trying to win the argument cold.
+
+**Decision 4 — Sequencing: investors before Komatsu; the MVP-sans-cert is baseline, not pitch.** Pix must approach **investors before Devon reaches his Komatsu moment.** Implication: the full DARCSI compliance-standard story has to be **mapped out now**, so the investor narrative *starts where the MVP ends* — the MVP-without-cert is "in the rear-view mirror" (assumed, behind us, proof-of-build), and the pitch leads with the DARCSI compliance standard (cert-as-product + verification portal + standard positioning). Pitching the bench/logger to investors would commoditise the story; the company *is* the standard.
+
+**Two-audience guard.** "Not MVP for Devon" must not bleed into "not central." Keep the cert **loud in the vision / investor layer** (proposal vision sections + investor narrative) and **quiet in the Devon MVP demo layer**. If it goes quiet in both, the product is commoditised. This also protects against Devon later feeling the goalposts moved — the standard was always in the stated vision; he simply was not required to swallow it to commission a bench. (Note the prior "built exclusively for Devon" misread that Amy raised — the same exclusivity drift; keep the standard explicitly non-exclusive in the vision layer.)
+
+**Alternatives considered.** (a) Keep pushing the cert-as-product argument with Devon now — rejected: it is failing, it entrenches his ownership frame, and it risks the commissioning gate. (b) Descope the cert from the build — rejected: it is the commercial heart and most of what is built; the issue is framing, not engineering. (c) Wait for time to change his mind — rejected: realisation is occasion-based (Komatsu), not time-based.
+
+**Source.** Pix ↔ Claude strategy conversation 2026-06-08, building on Devon's 2026-06-05 voice note and the 2026-06-03 privacy-of-evidence / portal decisions.
+
+**Affects.** `TASKS.md` (new investor-prep mapping action; cert-reveal-timed-to-Komatsu action; "drop 'your customer'" language note). Proposal rework — keep the DARCSI compliance vision loud in the vision sections. Investor / pitch materials — lead with the standard, MVP as baseline. No code change.
+
+---
+
 ## 2026-06-05 — Cleanliness traceability code on the cert + calibration cadence (Devon voice note)
 
 Source: Devon **voice note** dated 2026-06-05 17:43 (received 2026-06-03, flood week; hand-transcribed by Pix later — full text in `devon-videos/transcripts/voicenote_2026-06-05_17-43.txt`). Two threads.

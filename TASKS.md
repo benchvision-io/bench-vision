@@ -22,6 +22,14 @@ build status has exactly one home._
 
 ## Active
 
+### Positioning / go-to-market (decided 2026-06-08 — see decision-log)
+
+> The certificate is the **DARCSI** compliance-standard layer, **not** the BenchVision MVP demo. Cert engineering continues internally; it simply leaves the Devon-facing MVP framing. Two-audience rule: **loud in the vision/investor layer, quiet in the Devon demo.**
+
+- [ ] 🔴 **[Pix] Map the DARCSI compliance-standard story for investors — MVP-sans-cert as baseline** — Pix must approach investors **before** Devon reaches his Komatsu moment, so the standard has to be articulated now. The investor narrative starts *where the MVP ends*: the bench/acquisition/grading MVP is assumed (rear-view mirror, proof-of-build), and the pitch leads with the DARCSI compliance standard — cert-as-product, verification portal (`darcsi.io/verify`), and positioning as industry infrastructure (MOT-station / hallmark / UKAS analogues). Deliverable: the mapped story + pitch materials. See decision-log 2026-06-08 §4.
+- [ ] 🟡 **Time the certificate reveal to Devon to his Komatsu approach** — Devon's realisation trigger is named: his stated intent to approach **Komatsu** (an OEM that will demand verifiable compliance evidence a personal report can't supply). Don't spend the reveal earlier arguing it cold — prepare it to land at/around that approach. See decision-log 2026-06-08 §3.
+- [ ] 🟢 **Language discipline: drop "your customer" in Devon-facing framing** — speak at industry scale (*the sector / a recognised standard / the market*), not workshop scale. "Your customer" re-anchors Devon as owner-of-a-personal-report and invites the "they can go elsewhere" reflex. See decision-log 2026-06-08 §2.
+
 ### Build
 
 - [ ] 🟡 **[Agent] Build first live HAL driver (P0)** — the documented next step after the sequencer is complete. Create a `LiveChannelSource` that reads a real sensor (one channel, e.g. pressure transducer via serial/USB), proving the `ChannelSource` substitution architecture end-to-end. The sequencer never hard-codes `derived` — a `LiveChannelSource` returning `measured` provenance is the live-mode seam. Start with a single sensor; stub others as `SimulatedChannelSource`. See decision-log 2026-06-02 "Next: the first live HAL driver (P0)". Batch the three Devon questions first (cadence, run-id, certificate fields) as they may affect HAL requirements.
