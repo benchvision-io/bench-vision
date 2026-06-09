@@ -6,23 +6,54 @@ test benches. This folder, `benchvision-app/`, is the **Python application**: a
 profile-driven **formula engine**, a **DAQ sensor simulator**, and a **live terminal
 dashboard** that validates the engine against a real manufacturer chart.
 
-> **Naming:** *DARCSI* is the platform, *BenchVision* is the product, and `bench-vision`
+> **Naming:** _DARCSI_ is the platform, _BenchVision_ is the first product, and `bench-vision`
 > is the code name used in file names and CSS. Don't conflate them.
 
-This is early-MVP / discovery work. What's here is the **measurement core** — the maths
+This is early-MVP / discovery work related to pump tests. It will in future also support other hydraulic component testing (hydraulic hoses, moulded coolant hoses, pipes, manifolds, tanks, accumulators, valves and many other components to ensure they are fit for that purpose). What's here is the **measurement core** — the maths
 that turns raw sensor readings into graded, certifiable test channels — proven out
 against a known-good chart before any real hardware or production UI is built. See
 [Status](#status--whats-not-here-yet) for an honest line on what does and doesn't exist.
 
 ---
 
-## The core idea: formulas + profiles, not hard-coded pumps
+## Architectural principles
+
+Three principles shape every design decision and are worth stating up-front because they
+constrain everything downstream:
+
+1. **Offline-first by design.** The bench is fully usable without network connectivity.
+   Every run record, certificate PDF, supporting PDF and audit event is written to local
+   persistent storage the moment it exists. Network is required only for _downstream_
+   surfaces (the DARCSI customer portal, OEM telemetry push, profile-update pull) — never
+   to complete a test or release a certificate. Industrial test environments cannot be
+   assumed online, and ALCOA+ requires records to be _Available_, not always-online.
+
+2. **Calibration tracking is a foundation, not an add-on.** Each channel carries a sensor
+   registry block (manufacturer, model, serial, cal cert id, cal lab, cal date, cal due,
+   traceability chain) in the pump profile. The sequencer refuses to start a graded test
+   on an errored channel; certificates render their calibration-traceability statement
+   mechanically from the registry. Without traceability the document is a _test report_,
+   not a _certificate_; the registry makes the difference automatic and accurate.
+
+3. **Two-layer certificate with privacy of evidence.** Every test generates a **main
+   certificate** (verdict, identity, characteristic curve, per-band grading, one-line cal
+   traceability) and a **supporting document** (water content, fluid temperature,
+   cleanliness, full per-channel cal references, raw trace, attached cal cert PDFs). Both
+   are always generated; distribution is gated at _release_ time, not _render_ time. The
+   customer gets a clean cert; the audit trail exists and is releasable on demand.
+
+Full scope sketches in [`../docs/forward-requirements-2026-06-03.md`](../docs/forward-requirements-2026-06-03.md).
+Decision-log entries 2026-06-03 (a/b/c) carry the rationale for each.
+
+---
+
+## The core idea: formulas + profiles, not hard-coded components
 
 Derived test channels (flow, torque, power) are **not** hard-coded per pump. They are
 computed by a small library of **named, version-locked, pure formulas**
 ([`formula_registry.py`](formula_registry.py)) that are **selected and parameterised by a
 per-pump TOML profile** ([`pump_profile.py`](pump_profile.py)). The driving principle:
-*the formula for a test type is stable; what varies pump-to-pump is the inputs.*
+_the formula for a test type is stable; what varies pump-to-pump is the inputs._
 
 ```
                 pump_profile.py                         formula_registry.py
@@ -51,13 +82,13 @@ present before evaluating — a single choke point where a future range-/unit-ch
 
 The curated formulas currently registered (all `@v1`):
 
-| Formula | What it computes |
-|---|---|
-| `pump_flow_linear` | Legacy linear `Q = Q0 − slope·P` (kept for a byte-identical refactor proof and genuinely linear fixed-displacement pumps) |
-| `pump_flow_pc_destroke` | Power-controlled flow: flat to the PC cut-in, then a constant-power hyperbola `Q = power_const / P` |
-| `absorption_torque_from_flow` | Input-shaft absorption torque derived from **live flow**, so the plateau emerges under power control |
-| `radial_torque_sin90` | Radial torque `T = F·r·sin θ`; shaft radius from the **operator-supplied** diameter |
-| `power_from_flow_pressure` | Hydraulic power `P_hyd[kW] = P·Q / 600` |
+| Formula                       | What it computes                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `pump_flow_linear`            | Legacy linear `Q = Q0 − slope·P` (kept for a byte-identical refactor proof and genuinely linear fixed-displacement pumps) |
+| `pump_flow_pc_destroke`       | Power-controlled flow: flat to the PC cut-in, then a constant-power hyperbola `Q = power_const / P`                       |
+| `absorption_torque_from_flow` | Input-shaft absorption torque derived from **live flow**, so the plateau emerges under power control                      |
+| `radial_torque_sin90`         | Radial torque `T = F·r·sin θ`; shaft radius from the **operator-supplied** diameter                                       |
+| `power_from_flow_pressure`    | Hydraulic power `P_hyd[kW] = P·Q / 600`                                                                                   |
 
 Design notes live in [`../demo-simulation/spec.md`](../demo-simulation/spec.md) §8A.
 
@@ -68,13 +99,13 @@ Design notes live in [`../demo-simulation/spec.md`](../demo-simulation/spec.md) 
 The bundled profile, [`profiles/pc200-8-hpv95.toml`](profiles/pc200-8-hpv95.toml),
 is the **validation case** — a Komatsu **PC200-8** main pump (HPV95+95, part
 `708-2L-00500`). It is **digitised from the manufacturer chart**: Komatsu document
-**EEN00038-00**, *Fig. 1 Pump Assembly Performance Specification Chart*, **page 14**.
+**EEN00038-00**, _Fig. 1 Pump Assembly Performance Specification Chart_, **page 14**.
 
 - **The chart PDF is the external source of truth and is NOT in this repo** (`docs/` is
   git-ignored). The full digitisation — every callout, every cross-check — is recorded in
   [`../demo-simulation/pc200-8-chart-digitised-values.md`](../demo-simulation/pc200-8-chart-digitised-values.md).
 - **Flow acceptance band = the chart's printed limit lines.** The `[acceptance.flow]`
-  polyline is the chart's dotted *Upper limit (Reference value)* and solid *Lower limit*
+  polyline is the chart's dotted _Upper limit (Reference value)_ and solid _Lower limit_
   lines, read directly from the PDF (each callout's MPa value cross-checked against its
   `{kgf/cm²}` pair). The lower-limit destroke knee sits at ~102 bar; the band fans out
   after it (e.g. ~144 / 108.5 L/min at 250 bar). Data ends at the certified maximum of
@@ -84,7 +115,7 @@ is the **validation case** — a Komatsu **PC200-8** main pump (HPV95+95, part
   control, real mechanical efficiency falls (~0.85 at the PC knee → ~0.74 at 400 bar);
   feeding that per-pressure η to the **unchanged** `absorption_torque_from_flow@v1`
   formula bends its flat constant-power plateau up to match the printed curve. Only the
-  *input supply* changed, not the function — so **no formula version bump**.
+  _input supply_ changed, not the function — so **no formula version bump**.
 - **Torque is a monitored reference, not graded pass/fail.** `[acceptance.torque]` holds
   the nominal curve as a deliberate **zero-width placeholder** (`upper == lower ==
   nominal`) pending a decision on whether torque becomes a graded channel; the dashboard
@@ -98,7 +129,7 @@ Some quantities the software **cannot** know and must **not** hard-code — they
 unit-to-unit even within a pump model. Shaft diameter is the worked example: the profile
 marks it `operator_prompt = true` and carries only a fallback default. The engine
 **formulates from the operator's input** (`radial_torque_sin90` derives the shaft radius
-from the supplied `shaft_diameter_mm`) rather than assuming a value. Pump-specific *chart*
+from the supplied `shaft_diameter_mm`) rather than assuming a value. Pump-specific _chart_
 values belong in the profile; operator-variable quantities stay operator-prompted.
 
 ---
@@ -185,6 +216,7 @@ benchvision-app/
 This is early **Milestone 1 / discovery**. Be honest about the boundary:
 
 **Built and validated**
+
 - ✅ Formula engine (`formula_registry.py`, `pump_profile.py`) — profile-driven,
   version-locked, **19 unit tests passing**.
 - ✅ PC200-8 validation profile — flow + torque digitised from the chart; flow band is the
@@ -197,6 +229,7 @@ This is early **Milestone 1 / discovery**. Be honest about the boundary:
   monitored-reference).
 
 **Not started**
+
 - ⏳ Real DAQ I/O (no hardware driver; the simulator is the only data source today).
 - ⏳ Production operator HMI, safety/interlock layer, certificate/report generation.
 
