@@ -1,0 +1,295 @@
+# =============================================================================
+# BENCH CHANNEL MAP + SENSOR REGISTRY  —  Devon's pump bench (FTS/PC9000)
+# =============================================================================
+# ⚠ DRAFT / PROVISIONAL — first cut, 2026-06-10.
+#
+# This is a NEW artefact type, distinct from a pump profile:
+#   • A PUMP PROFILE (e.g. pc200-8-hpv95.toml) = pump-specific chart data,
+#     acceptance bands, and which derived formula computes flow/torque/power.
+#   • THIS FILE = the BENCH's physical channel map + per-channel sensor registry
+#     (what sensor sits on each channel, its signal type, scaling, and
+#     calibration traceability). Bench-specific, pump-agnostic.
+#
+# SOURCE (provisional, verify before relying on it):
+#   • Channel list + engineering ranges/units: photo of Devon's existing `cal`
+#     config (16 channels), transcribed in
+#     demo-simulation/devon-existing-bench-system-2026-06-10.md — NOT yet the
+#     verbatim file (collector script pending; see TASKS.md).
+#   • Instrument identities: Devon's hardware photos 2026-06-10.
+#   • Signal types / DAQ wiring: benchvision-working/devon-reference/new-bench/
+#     DAQ-hardware-options.md (signal inventory) + ICM-modbus-integration-brief.md.
+#
+# WHAT'S SOLID vs TBC:
+#   • Channel roles, engineering ranges and units — read from the cal table (solid).
+#   • Flow = Hydrotechnik RE 4-600; ch10/11 Pressure A/B = Gems 3100 (0–5 V);
+#     cleanliness = MP Filtri ICM 2.0 — identified from photos/labels (solid).
+#   • The specific sensor on most pressure channels, and several signal types,
+#     are TBC — fill from the returned config files + the calibration certificates
+#     in benchvision-working/sensors-literature/ and …/new-bench/.
+#
+# NOTE on legacy scaling: the cal table's raw Min/Max Input figures (e.g. 0.4–2,
+# 0.021–5) belong to the OLD PC9000 DAQ and are recorded here as `legacy_input`
+# for reference only. The NEW BenchVision DAQ (LabJack T7, see [daq]) re-scales
+# from each sensor's own native output, so production scaling is defined by the
+# sensor block, not these legacy numbers.
+# British English throughout.
+# =============================================================================
+
+schema_version = "0.1-draft"
+
+[meta]
+bench_id      = "devon-fts-pump"
+display_name  = "Devon's pump test bench (FTS / PC9000 — legacy)"
+channel_count = 16                 # analogue channels in the cal table; ICM is separate (RS485)
+provenance    = "cal-table photo + hardware photos 2026-06-10; see decision-log 2026-06-10"
+status        = "PROVISIONAL — verify against verbatim config files + cal certs"
+
+# -----------------------------------------------------------------------------
+# DAQ — how BenchVision reads the bench. DECISION OPEN (LabJack T7 leading).
+# 4–20 mA channels: 249/250 Ω burden resistor → voltage, 4 mA→1 V, 20 mA→5 V.
+#   eng = range_min + (range_max - range_min) * (volts - 1.0) / 4.0
+# 0–5 V channels: read direct on a LabJack AIN.
+# RS485 (ICM): separate USB-to-RS485 adapter, Modbus RTU (see icm block).
+# -----------------------------------------------------------------------------
+[daq]
+device          = "LabJack T7"     # ⚠ DECISION OPEN — see TASKS.md (Pi 4 demo fallback, NI USB-6001 third)
+analog_inputs   = 14               # T7; Devon's bench uses 16 analogue ch → expansion or multiplex needed (FLAG)
+burden_ohms     = 249.0            # for 4–20 mA channels
+rs485_adapter   = "USB-to-RS485 (FTDI-class)"  # for the ICM
+
+# NOTE: 16 analogue channels > 14 native T7 AINs. Resolve at hardware-spec time
+# (T7 + expansion, T7-Pro, or drop unused channels for the MVP). Flagged for the
+# open DAQ decision.
+
+# -----------------------------------------------------------------------------
+# Signal-type vocabulary (for the `signal` field below):
+#   "current_4_20mA"  — 4–20 mA current loop (needs burden resistor)
+#   "voltage_0_5V"    — 0–5 V
+#   "voltage_0_10V"   — 0–10 V
+#   "frequency"       — pulse/frequency (e.g. turbine/gear flow, speed)
+#   "modbus_rs485"    — digital (ICM)
+#   "derived"         — computed, not a physical sensor
+#   "tbc"             — to be confirmed
+# -----------------------------------------------------------------------------
+
+# === ANALOGUE CHANNELS (mirror Devon's cal table, ch 0–15) ===================
+
+[channel.ch00]
+label        = "Flow"
+role         = "system_flow"
+unit         = "L/min"
+eng_range    = [0, 600]
+legacy_input = [0.4, 2.0]
+signal       = "tbc"               # RE 4-600 gear meter: frequency or 4–20 mA via transmitter — confirm
+[channel.ch00.sensor]
+manufacturer = "Hydrotechnik"
+model        = "RE 4-600"
+part_number  = "31G7-72-35.030"
+serial       = "20773"
+range        = "25–600 L/min (6.60–158.4 GPM)"
+p_max        = "35.0 MPa / 5075 psi"
+cal_value    = 207.8
+cal_viscosity_cst = 30.0           # turbine/gear flow is viscosity-sensitive — flag for engine accuracy
+cal_cert     = "benchvision-working/sensors-literature/Turbine-flow-sensor-calibration-certificate.pdf"
+
+[channel.ch01]
+label        = "Main Pressure"
+role         = "main_delivery_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.021, 5.0]
+signal       = "tbc"               # likely 0–5 V (Gems-class) or 4–20 mA — confirm
+[channel.ch01.sensor]
+manufacturer = "tbc"
+model        = "tbc"
+serial       = "tbc"
+range        = "0–700 bar"
+
+[channel.ch02]
+label        = "LS High Press"
+role         = "load_sense_pressure"   # the LS line Devon named
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.033, 4.3]
+signal       = "tbc"
+[channel.ch02.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch03]
+label        = "Pressure B"
+role         = "pressure_b"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.007, 5.0]
+signal       = "tbc"
+[channel.ch03.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch04]
+label        = "Servo F"
+role         = "servo_forward_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.490, 2.4]
+signal       = "tbc"
+[channel.ch04.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch05]
+label        = "TVC"
+role         = "tvc_pressure"          # torque/variable-control valve pressure — confirm meaning with Devon
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.490, 2.4]
+signal       = "tbc"
+[channel.ch05.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch06]
+label        = "Pilot"
+role         = "pilot_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.487, 2.4]
+signal       = "tbc"
+[channel.ch06.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch07]
+label        = "Servo R"
+role         = "servo_return_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.481, 2.4]
+signal       = "tbc"
+[channel.ch07.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch08]
+label        = "RPM"
+role         = "shaft_speed"
+unit         = "RPM"
+eng_range    = [0, 1482]
+legacy_input = [0, 10]
+signal       = "tbc"               # speed pickup — frequency or 0–10 V — confirm
+[channel.ch08.sensor]
+manufacturer = "tbc"
+range        = "0–1482 RPM"
+
+[channel.ch09]
+label        = "Kw"
+role         = "input_power"
+unit         = "kW"
+eng_range    = [0, 132]
+legacy_input = [0, 10]
+signal       = "derived"           # Devon's bench has NO torque channel; power is computed.
+                                   # BenchVision derives torque from flow (see pump profile);
+                                   # reconcile measured-kW vs derived-power at integration.
+
+[channel.ch10]
+label        = "Pressure A"
+role         = "pressure_a"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0, 5.0]
+signal       = "voltage_0_5V"      # CONFIRMED: matches the Gems 3100 0–5 V / 0–700 bar label
+[channel.ch10.sensor]
+manufacturer = "Gems Sensors"
+model        = "3100 series"
+part_number  = "3100R0700S01B000"
+range        = "0–700 bar"
+output       = "0–5 V"
+supply       = "8–30 V dc"
+made_in      = "England"
+
+[channel.ch11]
+label        = "Pressure B"
+role         = "pressure_b_2"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0, 5.0]
+signal       = "voltage_0_5V"      # likely a second Gems 3100 (0–5 V) — confirm serial
+[channel.ch11.sensor]
+manufacturer = "Gems Sensors"
+model        = "3100 series (assumed)"
+range        = "0–700 bar"
+output       = "0–5 V"
+
+[channel.ch12]
+label        = "P1"
+role         = "aux_pressure_p1"
+unit         = "bar"
+eng_range    = [0, 400]
+legacy_input = [0.475, 2.4]
+signal       = "tbc"
+[channel.ch12.sensor]
+manufacturer = "tbc"
+range        = "0–400 bar"
+
+[channel.ch13]
+label        = "P2"
+role         = "aux_pressure_p2"
+unit         = "bar"
+eng_range    = [0, 400]
+legacy_input = [0.475, 2.4]
+signal       = "tbc"
+[channel.ch13.sensor]
+manufacturer = "tbc"
+range        = "0–400 bar"
+
+[channel.ch14]
+label        = "Case Drain"
+role         = "case_drain_flow"
+unit         = "L/min"
+eng_range    = [0, 75]
+legacy_input = [2.0, 10.0]
+signal       = "tbc"               # low-range flow meter — confirm make/model
+[channel.ch14.sensor]
+manufacturer = "tbc"
+range        = "0–75 L/min"
+
+[channel.ch15]
+label        = "P4"
+role         = "aux_pressure_p4"
+unit         = "bar"
+eng_range    = [0, 400]
+legacy_input = [0.475, 2.4]
+signal       = "tbc"
+[channel.ch15.sensor]
+manufacturer = "tbc"
+range        = "0–400 bar"
+
+# === DIGITAL INSTRUMENT (separate from the 16 analogue channels) =============
+# Cleanliness via RS485 Modbus, NOT an analogue channel. Full register map +
+# wiring + pymodbus in:
+#   benchvision-working/devon-reference/new-bench/ICM/ICM-modbus-integration-brief.md
+[icm]
+role          = "fluid_cleanliness"
+manufacturer  = "MP Filtri"
+model         = "ICM 2.0"
+product_code  = "ICMWMKUG32.0"
+serial        = "16112382"
+signal        = "modbus_rs485"
+protocol      = "Modbus RTU, 8-E-1, node 204"
+reports       = "ISO 4406:1999 code (reg 56–63), temp (33), water/RH (34), flow (37), status (30)"
+cal_cert      = "benchvision-working/devon-reference/new-bench/ICM/ICM-calibration-certificate.pdf"
+notes         = "SIMULATE mode (reg 20 bit 7) lets us develop against the real unit with no fluid."
+
+# -----------------------------------------------------------------------------
+# OPEN ITEMS before this becomes a production registry:
+#  1. Replace photo-transcribed values with the verbatim `cal` file (collector
+#     script pending).
+#  2. Fill every `tbc` sensor block from the returned config + the calibration
+#     certificates (sensors-literature/ + new-bench/).
+#  3. Confirm each `signal` type (4–20 mA vs 0–5 V vs frequency) — drives DAQ wiring.
+#  4. Resolve 16 analogue channels vs 14 T7 AINs (DAQ decision still open).
+#  5. Reconcile measured-kW (ch09) vs BenchVision's derived torque/power.
+#  6. Add the eventual per-channel calibration traceability fields (cal lab,
+#     cal date, cal due, cert id) per the planned sensor-registry design (TASKS.md).
+# -----------------------------------------------------------------------------

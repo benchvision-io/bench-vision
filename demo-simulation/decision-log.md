@@ -20,6 +20,98 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-10 — New-bench working folder surfaced: ICM integration already specced; DAQ direction; live actions
+
+**Context.** Pix connected the full `Development/` folder, exposing `benchvision-working/devon-reference/new-bench/` — previously invisible to agent sessions (it's the untracked working store). It contains **prior analysis**, not just manuals, that overlaps several "open" tracked tasks. This is a **drift case** (§8A/§10A): real progress lived only in the working folder, so the repo trackers understated how far along the HAL/cleanliness work is, and agents (incl. this one) had begun re-deriving it from photos.
+
+**What's there (high-value).**
+1. **`ICM/ICM-modbus-integration-brief.md`** — complete MP Filtri ICM read spec: RS485 Modbus RTU (even parity, node 204), register map (ISO 4406 codes 56–63, temp 33 / water 34 / flow 37 / status 30, raw counts 40–55), command register 21, **SIMULATE mode (reg 20 bit 7)** for dev without fluid, and a pymodbus example. **This answers the open cleanliness-integration question** (the 2026-06-05 traceability decision + the Tier-2 smart-sensor-read item) — it's specced, pending reconciliation into the trackers. (Brief covers model ICM-WMKR; Devon's label is ICMWMKUG32.0 — same ICM 2.0 family, same Modbus map.)
+2. **`DAQ-hardware-options.md`** — confirmed signal inventory (ICM RS485; Gems 3100 0–5 V; Flo-tech flow/pressure/temp 4–20 mA — **matches the photo-derived inventory**), DAQ device options (**LabJack T7 recommended**, Pi 4 demo fallback, NI USB-6001 third), 4–20 mA→V via 249/250 Ω burden, and a **~R15k dedicated Linux bench-PC** proposal + draft funding ask to Devon.
+3. Plus cal certs (turbine flow, Badger Meter), Flo-tech folder, ICM quick-start/handbook, LPA-View software, ICM training videos.
+
+**Status (confirmed by Pix 2026-06-10).**
+- **DAQ hardware = still OPEN** (LabJack T7 leading, not decided). Pix to send Devon a PC-collector script + the Linux-box pricing.
+- **Dedicated bench PC (~R15k) = agreed in principle** by Devon; Pix still needs to send him the formal document.
+
+**Decisions / actions.**
+1. Treat the ICM Modbus brief as the authoritative cleanliness-integration spec; reconcile it into the sensor-registry/cleanliness tasks (don't re-derive). 
+2. DAQ hardware logged as an **open decision** (T7 leading) — not settled.
+3. Built a Windows-XP **bench-file collector script** for Devon (`benchvision-working/devon-reference/new-bench/collect-bench-files/COLLECT-BENCH-FILES.bat` + `README-for-Devon.txt`) — read-only; grabs the `…\fts\pump\config\` files + PC details for sizing the Linux box. Pix to send it (zipped — email blocks bare .bat).
+4. **General lesson:** the `benchvision-working/` tree holds prior analysis not reflected in the repo. Sweep it when reconciling tasks; treat it as a source like the transcripts/decision-log.
+
+**Source.** `Development/darcsi/benchvision-working/devon-reference/new-bench/` (read 2026-06-10); Pix status answers same day.
+
+**Affects.** `TASKS.md` (DAQ decision open; cleanliness integration spec'd; send-Devon actions; reconcile working-folder analysis). Sensor-registry/HAL work now has real specs to build from (ICM Modbus map, signal inventory, T7, burden-resistor scaling).
+
+---
+
+## 2026-06-10 — Devon's existing bench system revealed (LabVIEW/XP + PC9000 DDE; 16-channel cal; multi-vendor incl. Hydrotechnik)
+
+**Context.** Pix shared photos of Devon's current pump test bench — both the screen (his running software) and hardware labels. Fully transcribed into a new reference: `demo-simulation/devon-existing-bench-system-2026-06-10.md`. This is the legacy system BenchVision replaces and a real-world template for the sensor-registry/profile schema.
+
+**What was captured.**
+1. **Incumbent software stack = LabVIEW on Windows XP.** App `C:\Program Files\fts\pump\` (`meterdisplay.vi`, `PUMP5`, `Main Menu`), data fed by a **PC9000 DDE Server**; config in `…\config\` (`cal`, `colors`, `czert` text + `All`/`Open Loop`/`Case Drain`/`RPMkw` `.LYT` layout files). Two desktop shortcuts **"print with iso codes"** → his current cert output already prints **ISO cleanliness codes**.
+2. **16-channel `cal` table** (raw-input → engineering-unit linear scaling): Flow (0–600 L/min), Main Pressure, **LS** High Press, Pressure A/B/B, **Servo F/R, TVC, Pilot**, **P1/P2/P4**, **Case Drain** (0–75 L/min), RPM (0–1482), kW (0–132) — most inputs 0–5 V/0–10 V class with live-zero offsets. Full table in the reference doc.
+3. **Multi-vendor instrument estate — now includes Hydrotechnik.** Flow = **Hydrotechnik RE 4-600** (part 31G7-72-35.030, S/N 20773, 25–600 L/min, 35 MPa, cal 207.8 @ 30 cSt). Plus Flo-tech (4–20 mA), Gems 3100 (0–5 V, 0–700 bar — matches ch10/11), MP Filtri ICM 2.0 (cleanliness, digital).
+
+**Decisions / implications.**
+1. **Correction:** Devon **does** use Hydrotechnik measurement kit (the RE 4-600 flow meter) — the earlier "not embedded in the Hydrotechnik ecosystem" line (SWOT §1, decision-log Minimess entry) was wrong on the *instrument* side. His "Minimess irrelevant" point stands separately (it's about manual-gauge *test points*, not Hydrotechnik instruments).
+2. **Positioning — "post-LabVIEW/XP" is concrete, not abstract:** Devon's own bench runs LabVIEW + Windows XP + a DDE DAQ. BenchVision is literally replacing that stack — the strongest possible validation of the modernisation wedge from the reference installation itself.
+3. **Schema input:** the 16-channel cal table is a ready-made template for the BenchVision **sensor registry / pump profile** — per-channel label, raw-input range, eng-unit scaling, unit, alarm thresholds, layout presets per test mode (Open Loop, etc.). Build the registry to express this, then exceed it (provenance, cal-cert refs, uncertainty, verdict regime). HAL must scale arbitrary linear `(in_min,in_max)→(disp_min,disp_max)` across mixed analogue (mA + V).
+4. **Metrology nuance:** the Hydrotechnik turbine flow meter is cal'd at **30 cSt**; turbine flow is viscosity/temperature-sensitive — flag for the formula-engine accuracy work.
+
+**Action.** Ask Devon for the actual 1 KB text files (`cal`, `All`, `Open Loop`, `RPMkw`, `colors`, `czert`) for a verbatim template instead of a photo transcription. Tracked in `TASKS.md`.
+
+**Source.** Pix-supplied bench photos 2026-06-10 (one hardware shot timestamped 2024-04-05); transcribed in `devon-existing-bench-system-2026-06-10.md` (verify against source files when obtained).
+
+**Affects.** New `demo-simulation/devon-existing-bench-system-2026-06-10.md`. `TASKS.md` (sensor-registry template + obtain-config-files action + post-LabVIEW positioning proof). `discovery/market-sizing/deliverables/05-hydrotechnik-competitor-swot.md` §1 (correct the Hydrotechnik-ecosystem line). Supersedes the "not embedded in Minimess/Hydrotechnik ecosystem" wording in the same-day Minimess entry (instrument side).
+
+---
+
+## 2026-06-10 — Devon on Minimess + multi-transducer requirement (current bench = one P/F/T meter)
+
+**Context.** Asked Devon a single question (per the one-question-at-a-time discipline) — whether he knows/uses Minimess test points, on the current and new bench — with a photo request. He replied by text the same day; **no photo** supplied.
+
+**Devon's answer (quoted).** "Pressure / Flow / Temperature was on the **red flow meter I gave you. Everything is measured through that device.** Mini test points are **irrelevant as you cannot measure them with the software you[']re developing, unless with a manual pressure gauge.** Your software can however have the ability to **measure or monitor multiple transducers**, should we put one on the **LS line, PC line, Closed loop lines A + B. That is 4 already. We did discuss to have the ability to have multiple transducers (10+).**"
+
+**Decisions captured.**
+1. **Minimess / mini test points are NOT a BenchVision measurement-path requirement.** Devon knows them (answers the "does he know them" question: yes) but treats them as a **manual-gauge** access method, not the transducer/software path. Drop them from the sensor-interface scope. *(Technical note, not raised with Devon, do not re-ask: a pressure transducer can be fitted to a Minimess point via adaptor, so a test point can still serve as a physical tap location for a wired transducer — a HAL/plumbing detail, not a measurement-method question.)*
+2. **Current-bench measurement = a single handheld P/F/T block — identified 2026-06-10 from Devon's photos as a Flo-tech (Badger Meter, US) hydraulic-diagnostic flow block.** Block S/N 052501A031, MFG Jan 2025; turbine flow (cal Hz→LPM, full-scale ≈ 605.7 LPM / ~600 L·min⁻¹) with separate Flo-tech pressure and temperature sensors. "Everything is measured through that device." Pix holds **photos only, not the physical unit** (correction to the earlier "in Pix's possession" note). This is the de-facto baseline Devon measures through today — itself a competitor-archetype handheld diagnostic instrument (Flo-tech / Badger Meter; cf. Webtec, Hydrotechnik).
+3. **Multi-transducer / multi-channel support is a confirmed requirement direction** (Devon: "we did discuss … multiple transducers (10+)"). Named lines he wants instrumented: **LS line, PC line, closed-loop lines A + B** (= 4 to start, target **10+ transducers**). This is broader than the single-pump PC200-8 validation case and feeds the **HAL / `ChannelSource` architecture and channel-count planning** — the live-mode design must scale to 10+ simultaneous transducer channels on named circuit roles, not just the validation pump's derived channels.
+
+4. **HAL implication — Devon's transducers are dumb analogue, but MIXED signal types** (refined 2026-06-10 from further photos). The Flo-tech P/F/T sensors are **4–20 mA** current-loop (flow 4 mA = 0 / 20 mA = 605.7 LPM). His pressure transducers also include **Gems 3100 series** (P/N 3100R0700S01B000, **0–700 bar, 0–5 V output**, 8–30 V supply, made in England) — a **voltage** output, not current-loop. So the first live HAL driver / `LiveChannelSource` must handle **both 4–20 mA and 0–5 V** analogue inputs with per-channel scaling — not 4–20 mA alone. Both are dumb analogue (no IO-Link/HART/TEDS).
+5. **Cleanliness instrument identified — MP Filtri ICM 2.0** (Prod Code ICMWMKUG32.0, S/N 16112382, 9–36 V DC, made in UK), supplied with its own USB software and a multi-core comms/output cable. Unlike the dumb P/F/T transducers, the ICM is a **smart digital instrument** with its own display, history log and comms — exactly the device the 2026-06-05 cleanliness-traceability decision referred to ("reading held in the ICM particle-counter's history log"). So the cleanliness integration path is the ICM's **digital interface / log ingest** (RS485/Modbus-class + its software), distinct from the analogue transducer path — i.e. the "smart-sensor self-read (Tier 2)" case applies specifically to this one instrument. The sensor registry should record Devon's actual instruments (Flo-tech 4–20 mA P/F/T; Gems 3100 0–5 V pressure; MP Filtri ICM 2.0 cleanliness) as the real-world baseline.
+
+**Strategic note.** Devon's bench is itself a **multi-vendor mix** — Flo-tech (4–20 mA) + Gems 3100 (0–5 V) + MP Filtri ICM (digital) — with no single vendor's software tying them together. That is BenchVision's **hardware-agnostic thesis in microcosm**: the value is a software/compliance layer that ingests any vendor's sensor regardless of make or signal type. A real-world proof point for the "open/agnostic vs single-vendor bundle" positioning (cf. SWOT §6A).
+
+**Alternatives considered.** Treat the Minimess question as still-open pending a photo — rejected: Devon answered the substance clearly in text; the photos (received 2026-06-10) confirmed the Flo-tech meter + the mixed-signal/ICM estate but didn't change the settled measurement-method answer.
+
+**Rationale.** This closes the Minimess open point without a re-ask and, more valuably, converts it into a concrete forward requirement (10+ transducers on named lines). It also corrects an earlier speculation in the competitor SWOT that Devon "almost certainly uses Minimess on his bench" — his actual setup measures everything through one handheld meter.
+
+**Source.** Devon text reply 2026-06-10 (quoted above), in answer to Pix's single Minimess+photo question.
+
+**Affects.** `TASKS.md` — Minimess Devon open point → RESOLVED; new note: identify the red P/F/T meter + multi-transducer (10+) requirement for HAL/channel planning. `discovery/market-sizing/deliverables/05-hydrotechnik-competitor-swot.md` — correct the "Devon almost certainly uses Minimess" lines (§1, §7). HAL/live-mode design — target 10+ simultaneous transducer channels on named circuit roles (LS / PC / closed-loop A+B …).
+
+---
+
+## 2026-06-10 — MVP sample-rate ceiling is a deliberate scope boundary (10 Hz acquire / 1 Hz display)
+
+**Context.** The Hydrotechnik competitor review (see `discovery/market-sizing/deliverables/05-hydrotechnik-competitor-swot.md`) surfaced that their portable MultiSystem dataloggers capture at up to **10 kHz** (0.1 ms) as a standard, headline capability, and the rig brochure claims "10,000 readings/sec". BenchVision's acquisition rate was already settled at **10 Hz acquire / 1 Hz display** (recalled from the formula-engine work). The competitor benchmark invites a reflexive "we're three orders of magnitude slower" worry, so the boundary is recorded here as a *deliberate* choice rather than left to drift or be silently raised by a future session reacting to the spec gap.
+
+**Decision.** Hold the MVP at **10 Hz acquire / 1 Hz display**. This is correct and sufficient for the MVP's job: **steady-state pump sign-off** against a manufacturer chart (flow / pressure / torque / power read at stabilised operating points — the PC200-8 HPV95 validation case). High-rate dynamic capture — pressure-spike / transient / burst / cyclic / servo-response work, where kHz sampling is genuinely required — is **explicitly out of MVP scope**, not a deficiency to close now. Revisit only on a named trigger (below), and if raised, treat it as a profile/engine capability decision, not a default-creep.
+
+**Alternatives considered.** (a) Raise the MVP rate toward kHz to match Hydrotechnik — rejected: it adds acquisition, storage, and display complexity the steady-state sign-off case does not need, and chases a competitor on an axis that is not the MVP's value proposition (the value is the grading + compliance layer, not raw sample rate). (b) Leave the rate unstated and decide per-bench later — rejected: that is exactly the silent-drift failure §8A exists to prevent; the gap is now visible and must be owned. (c) Frame high-rate as a known Gen-2 capability — accepted as the revisit path, not a now-task.
+
+**Rationale.** Sample-rate ceiling and value proposition are independent axes. Hydrotechnik leads on capture rate because they sell portable measurement instruments; BenchVision leads on the web-native grading + compliance standard layer. Matching their kHz would spend MVP effort defending a square we deliberately don't contest (see SWOT §4 "where we don't compete"). The honest boundary: **10 Hz is a scope decision tied to steady-state sign-off, not a hardware limit we're hiding.** Naming dynamic/burst as out-of-scope keeps the investor and Devon narratives clean — we can state the ceiling and the reason rather than being caught out by it.
+
+**Revisit trigger.** Re-open if (a) an OEM remanufacturing programme specifies a transient/response test that requires sub-100 ms resolution, or (b) a bench type on the roadmap (e.g. relief-valve crack/response, accumulator discharge) is brought into scope. Until then, do not raise the rate.
+
+**Source.** Pix ↔ Claude discussion 2026-06-10 on the Hydrotechnik brochure + competitor SWOT; sample-rate figure per the existing formula-engine decision.
+
+**Affects.** `discovery/market-sizing/deliverables/05-hydrotechnik-competitor-swot.md` (§6 implication #6 — the sample-rate gap now has a logged decision behind it). `out-of-scope.md` / `spec.md` — dynamic/burst high-rate capture is an explicit out-of-scope boundary for the MVP. No formula version bump; no code change.
+
+---
+
 ## 2026-06-09 — OEM-frame discipline for metrology questions (derived from 2026-06-08 Decision 2)
 
 **Context.** Today's sensor-registry research pass surfaced four genuinely-unsettled items, and the first version of the summary suggested "ask Devon what his customers expect" as the resolution path for the torque-transducer cadence (24 vs 12 months). That is exactly the workshop-scale framing the 2026-06-08 Decision 2 logged as the failure pattern, written less than 24 hours after the decision was ratified. Pix caught it. A discipline gap is now visible: the rule "drop 'your customer'" is easy to remember as a *language* rule (which words to use) and easy to forget as a *thinking* rule (which authority answers a question). The two-step slip was: (a) hit a genuinely-open metrology question; (b) reach instinctively for "what does the end-user expect?" — the right *category* of question, but pointed at the workshop-scale audience that re-anchors Devon as owner.
