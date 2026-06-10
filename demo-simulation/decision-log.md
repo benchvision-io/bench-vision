@@ -20,6 +20,56 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-10 — First `LiveChannelSource` lands: the `ChannelSource` substitution seam proven end-to-end
+
+**Decision.** Added the first live-mode wiring to `sequencer.py` as **substitution only** — no
+hardware, no run-loop change. Three additions: a hardware-agnostic `SensorTransport` Protocol
+(one method, `read_value() -> float`); a `LiveChannelSource` dataclass that reads through an
+injected transport and declares `provenance="measured"` with **no formula**; and a
+`live_flow_sources(sim, transport)` helper that reads **flow live** and leaves **torque
+simulated**. Tests in `tests/test_live_source.py` (suite green) prove a full stepped run via
+`live_flow_sources` records flow as `measured`/empty-formula while torque stays `derived` — and
+that a live-wired run and a fully-simulated run on the same seed grade **identically** (same
+verdict, same graded values), so substitution *alone* flips the provenance. This is the P0
+"first live HAL driver" step's **architecture proof**.
+
+**Alternatives considered.**
+- *Point the live channel at pressure* (TASKS.md said "e.g. a pressure transducer"). Rejected
+  for this step: pressure is the gridpoint **axis**, read straight off `sim.pressure`, and is
+  **not** one of `sources` — so it is not recorded with provenance. **Flow** is the channel the
+  sequencer records with provenance (the pass/fail truth), so it is the only channel that
+  actually demonstrates `measured` flowing into the frozen `RunRecord`. ⚠ Confirm with Pix that
+  proving the seam on flow first is acceptable (it is a stronger proof than pressure would be).
+- *Import a real DAQ library now* (pyserial / NI-DAQmx / LabJack / Modbus client). Rejected: the
+  committed tree must import and test on any machine, and the DAQ vendor + sample cadence + ICM
+  Modbus variant are still **open** Devon/hardware questions (DAQ decision open, T7 leading —
+  same-day entry below). The transport seam sidesteps all of them; the real implementation drops
+  in behind `SensorTransport` later with no sequencer change.
+
+**Rationale.** The 2026-06-02 sequencer design made `ChannelSource` the live-mode inversion seam
+(forward-requirements §1: on a real bench flow/torque are *measured, not derived*, and the curve
+becomes a reference to validate against, not a generator). Until now that seam had only the
+`derived` side wired. Wiring one `measured` source through the **unchanged** loop is the cheapest
+possible falsification of the claim "swap the source, not the sequencer" — and it holds.
+
+**Scope held (did NOT do).** No hardware library; no DAQ vendor/protocol choice; no change to the
+run loop, state machine, grading policy, smoothing, or abort path; no persistence, certificate,
+sensor registry, or ICM channel. Diff = one Protocol, one dataclass, one helper, the `__all__`
+line, and the new test file.
+
+**Open to batch with Devon (unchanged by this step).** Sample cadence, run-id format, and the
+certificate fields — the three batched Devon questions. The transport seam is intentionally
+vendor-blind so none of them block it.
+
+**Source.** Task brief from Pix 2026-06-10; `docs/forward-requirements-2026-06-02.md §1`;
+decision-log 2026-06-02 "Next: the first live HAL driver (P0)".
+
+**Affects.** `benchvision-app/sequencer.py` (+`SensorTransport`, `LiveChannelSource`,
+`live_flow_sources`, `__all__`), `benchvision-app/tests/test_live_source.py` (new). `TASKS.md`
+P0 item updated: architecture proof done; real-sensor read still open behind the DAQ decision.
+
+---
+
 ## 2026-06-10 — New-bench working folder surfaced: ICM integration already specced; DAQ direction; live actions
 
 **Context.** Pix connected the full `Development/` folder, exposing `benchvision-working/devon-reference/new-bench/` — previously invisible to agent sessions (it's the untracked working store). It contains **prior analysis**, not just manuals, that overlaps several "open" tracked tasks. This is a **drift case** (§8A/§10A): real progress lived only in the working folder, so the repo trackers understated how far along the HAL/cleanliness work is, and agents (incl. this one) had begun re-deriving it from photos.

@@ -130,6 +130,38 @@ class SimulatedChannelSource:
         return float(self.sensor.current_value)
 
 
+@runtime_checkable
+class SensorTransport(Protocol):
+    """One channel's latest reading in engineering units, from a real sensor.
+
+    The concrete implementation (serial / USB / Modbus / DAQ) is injected at the edge;
+    nothing in the committed tree imports a hardware library, so the seam stays testable and
+    the choice of DAQ stays an open hardware decision (forward-requirements §1). The real
+    transport drops in behind this Protocol once Devon confirms the DAQ and sample cadence —
+    with no change to the sequencer."""
+
+    def read_value(self) -> float: ...
+
+
+@dataclass
+class LiveChannelSource:
+    """A :class:`ChannelSource` backed by a real sensor, read through an injected
+    :class:`SensorTransport`. Satisfies the seam by **substitution**: it declares
+    ``provenance='measured'`` and carries **no formula** — on a live bench the curve is a
+    reference to validate against, not a generator (forward-requirements §1). The sequencer
+    records whatever this source declares, so swapping it in for one channel flips that
+    channel's provenance to ``measured`` with the run loop unchanged."""
+
+    channel: str
+    unit: str
+    transport: SensorTransport
+    provenance: str = Provenance.MEASURED
+    formula: str = ""          # measured, so no generating formula
+
+    def read(self) -> float:
+        return float(self.transport.read_value())
+
+
 def simulated_sources(sim: BenchSimulator) -> dict[str, ChannelSource]:
     """Build the derived-channel sources for a simulator run. Flow and torque are the two
     channels recorded as results; the formula ids come from the profile (public), so the
@@ -138,6 +170,20 @@ def simulated_sources(sim: BenchSimulator) -> dict[str, ChannelSource]:
         "flow": SimulatedChannelSource(
             "flow", sim.flow, formula=sim.profile.channels["flow"].formula
         ),
+        "torque": SimulatedChannelSource(
+            "torque", sim.torque, formula=sim.profile.channels["torque"].formula
+        ),
+    }
+
+
+def live_flow_sources(sim: BenchSimulator, transport: SensorTransport) -> dict[str, ChannelSource]:
+    """The first live HAL wiring: flow is read live through ``transport`` (declared
+    ``measured``, no formula); torque stays simulator-derived. This is the per-channel
+    substitution proof — one source swaps from derived to measured and the recorded
+    ``RunRecord`` follows, with no change to the sequencer loop or the grading policy
+    (forward-requirements §1; decision-log "first live HAL driver")."""
+    return {
+        "flow": LiveChannelSource("flow", sim.flow.unit, transport),
         "torque": SimulatedChannelSource(
             "torque", sim.torque, formula=sim.profile.channels["torque"].formula
         ),
@@ -354,7 +400,10 @@ __all__ = [
     "SequenceState",
     "ChannelSource",
     "SimulatedChannelSource",
+    "SensorTransport",
+    "LiveChannelSource",
     "simulated_sources",
+    "live_flow_sources",
     "default_grid_pressures",
     "TestSequencer",
 ]
