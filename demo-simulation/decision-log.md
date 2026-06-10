@@ -20,6 +20,20 @@ Entries are append-only, newest at the top. Each entry records:
 
 ---
 
+## 2026-06-10 — Measurement-uncertainty schema v1.1 lands (commit 1 of 4): `ChannelResult` fields + `MarginState`/`VerdictRegime`
+
+**Decision.** Land commit 1 of the 4-commit uncertainty-integration roadmap — the `run_record.py` schema patch only. `ChannelResult` gains seven optional uncertainty fields (backward-compatible defaults: `coverage_factor=2.0`, `verdict_regime=SIMPLE_ACCEPTANCE`, `margin_state=UNKNOWN`, the rest `None`); new `MarginState` (INSIDE/MARGINAL/OUTSIDE/UNKNOWN) and `VerdictRegime` (ILAC-G8) constant classes; `RunVerdict` gains `marginal: bool`; `to_dict`/`from_dict` extended symmetrically. Committed on `feat/uncertainty-schema`, branched from the cleaned `main`.
+
+**Alternatives considered.** (a) Land schema + sequencer margin-grading together — rejected: the integration plan sequences schema first so backward-compatibility is proven in isolation before any grading logic changes. (b) Make the new fields required — rejected: would break every pre-patch run-record JSON; defaults preserve the existing four-state behaviour exactly.
+
+**Rationale.** An additive, backward-compatible schema is the safe foundation: old payloads (no uncertainty keys) round-trip with defaults, new payloads round-trip losslessly. The 5th verdict (**MARGINAL**) is reserved in the enums now but not yet wired into aggregation — that is commit 2.
+
+**Source.** `docs/uncertainty-integration-plan.md` §2/§3/§6/§7/§10; method canon `docs/uncertainty-budget-methodology-2026-06-09.md` (GUM / JCGM 106 / ILAC-G8 / Z540.3 TUR 4:1); `SESSION_START_uncertainty-schema.md`. Origin: daily-learning lesson 9.
+
+**Affects.** `benchvision-app/run_record.py`, `benchvision-app/tests/test_run_record.py`. Forward consequence: `spec.md` verdict model gains MARGINAL at commit 2.
+
+---
+
 ## 2026-06-10 — New-bench working folder surfaced: ICM integration already specced; DAQ direction; live actions
 
 **Context.** Pix connected the full `Development/` folder, exposing `benchvision-working/devon-reference/new-bench/` — previously invisible to agent sessions (it's the untracked working store). It contains **prior analysis**, not just manuals, that overlaps several "open" tracked tasks. This is a **drift case** (§8A/§10A): real progress lived only in the working folder, so the repo trackers understated how far along the HAL/cleanliness work is, and agents (incl. this one) had begun re-deriving it from photos.

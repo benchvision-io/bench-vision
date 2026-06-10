@@ -59,8 +59,11 @@ from typing import Any, Protocol, runtime_checkable
 
 from cleanliness import CleanlinessReading, CleanlinessVerdict
 
-#: Bumped if the persisted JSON shape changes incompatibly.
-RUN_RECORD_SCHEMA_VERSION = "1.0"
+#: Bumped when the persisted JSON shape changes. 1.1 adds the optional
+#: uncertainty / decision-regime fields to ``ChannelResult`` (see
+#: ``docs/uncertainty-integration-plan.md`` §7); the change is forward- and
+#: backward-compatible — new keys are additive and old records read with defaults.
+RUN_RECORD_SCHEMA_VERSION = "1.1"
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +200,55 @@ class Provenance:
 _PROVENANCES = frozenset({Provenance.MEASURED, Provenance.DERIVED, Provenance.MANUAL})
 
 
+# ---------------------------------------------------------------------------
+# Measurement-uncertainty decision rules (GUM / ILAC-G8)
+# ---------------------------------------------------------------------------
+# The method canon is ``docs/uncertainty-budget-methodology-2026-06-09.md`` and
+# the seam this schema opens is ``docs/uncertainty-integration-plan.md`` §2. The
+# fields these enums type are all optional on :class:`ChannelResult`, defaulting
+# to "no uncertainty data" so a record written before this patch behaves exactly
+# as it did under the original four-state model.
+
+class MarginState:
+    """Where a channel reading sits relative to its acceptance limits, *after* the
+    guard band is applied (ILAC-G8:09/2019 §4).
+
+      * ``INSIDE``   — ``value ± U`` lies wholly inside the limits → PASS.
+      * ``MARGINAL`` — ``value ± U`` straddles a limit → indeterminate; only reachable
+        under ``guarded_acceptance``, and always paired with ``passed=None``.
+      * ``OUTSIDE``  — ``value`` is beyond a limit → FAIL.
+      * ``UNKNOWN``  — no reading, or no uncertainty budget → reverts to the existing
+        ``passed=None`` "could not evaluate" behaviour. This is the default, so a
+        record written before the field existed grades identically to today.
+    """
+
+    INSIDE = "inside"
+    MARGINAL = "marginal"
+    OUTSIDE = "outside"
+    UNKNOWN = "unknown"
+
+
+_MARGIN_STATES = frozenset({
+    MarginState.INSIDE, MarginState.MARGINAL,
+    MarginState.OUTSIDE, MarginState.UNKNOWN,
+})
+
+
+class VerdictRegime:
+    """Which decision rule applies to a channel (ILAC-G8 §4)."""
+
+    SIMPLE_ACCEPTANCE = "simple_acceptance"      # TUR >= 4: guard band w = 0
+    GUARDED_ACCEPTANCE = "guarded_acceptance"    # TUR < 4 (the default for graded channels)
+    GUARDED_REJECTION = "guarded_rejection"      # safety-critical only
+
+
+_VERDICT_REGIMES = frozenset({
+    VerdictRegime.SIMPLE_ACCEPTANCE,
+    VerdictRegime.GUARDED_ACCEPTANCE,
+    VerdictRegime.GUARDED_REJECTION,
+})
+
+
 @dataclass(frozen=True)
 class ChannelResult:
     """
@@ -226,6 +278,21 @@ class ChannelResult:
     provenance: str = Provenance.MEASURED
     formula: str = ""                     # registry id+version when derived; "" when measured
 
+    # --- uncertainty + decision-regime fields (GUM / ILAC-G8) ----------------
+    # All optional; the defaults ("no uncertainty data", simple acceptance,
+    # UNKNOWN margin) preserve the original four-state behaviour exactly, so a
+    # ChannelResult — or a JSON record — written before this patch is unchanged.
+    # See docs/uncertainty-integration-plan.md §2.
+    combined_standard_uncertainty: float | None = None   # u_c
+    expanded_uncertainty: float | None = None            # U = k · u_c
+    coverage_factor: float = 2.0                          # k (default 2 ≈ 95 %)
+    tolerance_lower: float | None = None                 # acceptance LSL
+    tolerance_upper: float | None = None                 # acceptance USL
+    tur: float | None = None                             # test-uncertainty ratio (USL−LSL)/(2·U)
+    verdict_regime: str = VerdictRegime.SIMPLE_ACCEPTANCE
+    guard_band_multiplier: float = 1.0                   # r in w = r · U
+    margin_state: str = MarginState.UNKNOWN              # set at grading time
+
     def __post_init__(self) -> None:
         if self.provenance not in _PROVENANCES:
             raise ValueError(
@@ -235,6 +302,23 @@ class ChannelResult:
             raise ValueError(
                 f"channel {self.channel!r}: a monitored reference (graded=False) must have "
                 f"passed=None, got {self.passed!r}"
+            )
+        if self.margin_state not in _MARGIN_STATES:
+            raise ValueError(
+                f"margin_state must be one of {sorted(_MARGIN_STATES)}, "
+                f"got {self.margin_state!r}"
+            )
+        if self.verdict_regime not in _VERDICT_REGIMES:
+            raise ValueError(
+                f"verdict_regime must be one of {sorted(_VERDICT_REGIMES)}, "
+                f"got {self.verdict_regime!r}"
+            )
+        # A MARGINAL reading is indeterminate by construction: it carries the same
+        # passed=None "could not be evaluated" semantics, so a pass/fail on it is a bug.
+        if self.margin_state == MarginState.MARGINAL and self.passed is not None:
+            raise ValueError(
+                f"channel {self.channel!r}: margin_state=MARGINAL requires passed=None "
+                f"(indeterminate), got passed={self.passed!r}"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -247,10 +331,21 @@ class ChannelResult:
             "graded": self.graded,
             "provenance": self.provenance,
             "formula": self.formula,
+            "combined_standard_uncertainty": self.combined_standard_uncertainty,
+            "expanded_uncertainty": self.expanded_uncertainty,
+            "coverage_factor": self.coverage_factor,
+            "tolerance_lower": self.tolerance_lower,
+            "tolerance_upper": self.tolerance_upper,
+            "tur": self.tur,
+            "verdict_regime": self.verdict_regime,
+            "guard_band_multiplier": self.guard_band_multiplier,
+            "margin_state": self.margin_state,
         }
 
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "ChannelResult":
+        # ``.get`` with the field default throughout, so a payload that pre-dates the
+        # uncertainty fields deserialises to today's behaviour (backward-compat gate).
         return cls(
             channel=str(raw["channel"]),
             value=float(raw["value"]),
@@ -260,6 +355,25 @@ class ChannelResult:
             graded=bool(raw.get("graded", True)),
             provenance=str(raw.get("provenance", Provenance.MEASURED)),
             formula=str(raw.get("formula", "")),
+            combined_standard_uncertainty=(
+                None if raw.get("combined_standard_uncertainty") is None
+                else float(raw["combined_standard_uncertainty"])
+            ),
+            expanded_uncertainty=(
+                None if raw.get("expanded_uncertainty") is None
+                else float(raw["expanded_uncertainty"])
+            ),
+            coverage_factor=float(raw.get("coverage_factor", 2.0)),
+            tolerance_lower=(
+                None if raw.get("tolerance_lower") is None else float(raw["tolerance_lower"])
+            ),
+            tolerance_upper=(
+                None if raw.get("tolerance_upper") is None else float(raw["tolerance_upper"])
+            ),
+            tur=(None if raw.get("tur") is None else float(raw["tur"])),
+            verdict_regime=str(raw.get("verdict_regime", VerdictRegime.SIMPLE_ACCEPTANCE)),
+            guard_band_multiplier=float(raw.get("guard_band_multiplier", 1.0)),
+            margin_state=str(raw.get("margin_state", MarginState.UNKNOWN)),
         )
 
 
@@ -346,25 +460,36 @@ class RunVerdict:
     """
     The run's overall outcome, computed from its results gated by the purpose.
 
-    Four states, kept distinct on purpose:
+    Five states, kept distinct on purpose:
 
-      * ``graded=False``                  → NOT GRADED — the purpose doesn't grade
+      * ``graded=False``                   → NOT GRADED — the purpose doesn't grade
                                             (characterisation/as-found), or nothing was
                                             meant to be graded.
       * ``graded=True``,  ``passed=True``  → PASS.
       * ``graded=True``,  ``passed=False`` → FAIL.
+      * ``graded=True``,  ``marginal=True``→ MARGINAL — a graded reading sits within the
+                                            guard band of its limit; the verdict is
+                                            indeterminate (ILAC-G8 §4, uncertainty-
+                                            integration-plan §3). ``passed`` is ``None``.
       * ``graded=True``,  ``passed=None``  → INCOMPLETE — something *meant* to grade could
                                             not be evaluated (see ``note``).
+
+    MARGINAL sits between FAIL and INCOMPLETE: a FAIL still kills the run, but a knife-edge
+    reading is reported as indeterminate rather than masquerading as either a pass or a
+    clean failure.
     """
 
     passed: bool | None
     graded: bool
+    marginal: bool = False
     note: str = ""
 
     @property
     def summary(self) -> str:
         if not self.graded:
             return "NOT GRADED"
+        if self.marginal:
+            return "MARGINAL"
         if self.passed is None:
             return "INCOMPLETE"
         return "PASS" if self.passed else "FAIL"
@@ -435,7 +560,14 @@ class RunRecord:
 
         ungradeable: list[str] = []
         outcomes: list[bool] = []
+        any_outside = False
+        any_marginal = False
         for r in expected_channels:
+            if r.margin_state == MarginState.OUTSIDE:
+                any_outside = True
+            if r.margin_state == MarginState.MARGINAL:
+                any_marginal = True
+                continue                                   # indeterminate, not "could not evaluate"
             if r.passed is None:
                 ungradeable.append(r.channel)              # meant to grade, could not
             else:
@@ -447,6 +579,24 @@ class RunRecord:
             else:
                 outcomes.append(c.verdict.passed)
 
+        # Precedence (uncertainty-integration-plan §3): a reading OUTSIDE its limits fails
+        # the run; a MARGINAL (guard-band-straddling) reading makes it indeterminate; an
+        # expected channel that could not be evaluated forces INCOMPLETE; otherwise the
+        # collected pass/fail outcomes decide. The OUTSIDE and MARGINAL branches only fire
+        # once a channel carries uncertainty data — with the defaults (margin_state=UNKNOWN)
+        # this reduces *exactly* to the original four-state behaviour: a legacy passed=False
+        # still falls through to FAIL, and a legacy ungradeable still takes precedence over
+        # it as INCOMPLETE.
+        if any_outside:
+            return RunVerdict(
+                passed=False, graded=True,
+                note="channel reading outside acceptance limits",
+            )
+        if any_marginal:
+            return RunVerdict(
+                passed=None, graded=True, marginal=True,
+                note="channel reading within the guard band of its limit (indeterminate)",
+            )
         if ungradeable:
             return RunVerdict(
                 passed=None, graded=True,
@@ -618,6 +768,8 @@ __all__ = [
     "TestPurpose",
     "utc_now_iso",
     "Provenance",
+    "MarginState",
+    "VerdictRegime",
     "ChannelResult",
     "CleanlinessResult",
     "RunVerdict",

@@ -21,9 +21,11 @@ from run_record import (  # noqa: E402
     ChannelResult,
     CleanlinessResult,
     JsonFileRunRecordRepository,
+    MarginState,
     Provenance,
     RunRecord,
     TestPurpose,
+    VerdictRegime,
     utc_now_iso,
 )
 
@@ -214,6 +216,98 @@ class TestRunVerdict(unittest.TestCase):
         rec = _record(channel_results=(flow_pass, flow_unknown))
         self.assertIsNone(rec.overall_passed)
         self.assertEqual(rec.verdict.summary, "INCOMPLETE")
+
+
+# ---------------------------------------------------------------------------
+# ChannelResult — uncertainty / decision-regime fields (backward-compat)
+# uncertainty-integration-plan §2 / §6 item 1 / §7
+# ---------------------------------------------------------------------------
+
+class TestChannelResultUncertainty(unittest.TestCase):
+    def test_old_payload_without_uncertainty_fields_reads_with_defaults(self) -> None:
+        # A record written before this patch carries none of the new keys; it must
+        # deserialise to today's behaviour exactly (the backward-compat gate).
+        legacy = {
+            "channel": "flow", "value": 148.5, "unit": "L/min",
+            "pressure_bar": 236.0, "passed": True, "graded": True,
+            "provenance": Provenance.DERIVED, "formula": "pump_flow_pc_destroke_v1",
+        }
+        r = ChannelResult.from_dict(legacy)
+        self.assertIsNone(r.combined_standard_uncertainty)
+        self.assertIsNone(r.expanded_uncertainty)
+        self.assertEqual(r.coverage_factor, 2.0)
+        self.assertIsNone(r.tolerance_lower)
+        self.assertIsNone(r.tolerance_upper)
+        self.assertIsNone(r.tur)
+        self.assertEqual(r.verdict_regime, VerdictRegime.SIMPLE_ACCEPTANCE)
+        self.assertEqual(r.guard_band_multiplier, 1.0)
+        self.assertEqual(r.margin_state, MarginState.UNKNOWN)
+        self.assertTrue(r.passed)               # behaves as the plain graded pass it was
+
+    def test_new_payload_round_trips_losslessly(self) -> None:
+        r = ChannelResult(
+            "flow", 148.5, "L/min", pressure_bar=236.0, passed=True,
+            provenance=Provenance.MEASURED,
+            combined_standard_uncertainty=0.42, expanded_uncertainty=0.84,
+            coverage_factor=2.0, tolerance_lower=144.0, tolerance_upper=152.0,
+            tur=4.8, verdict_regime=VerdictRegime.GUARDED_ACCEPTANCE,
+            guard_band_multiplier=1.0, margin_state=MarginState.INSIDE,
+        )
+        self.assertEqual(ChannelResult.from_dict(r.to_dict()), r)
+
+    def test_rejects_unknown_margin_state(self) -> None:
+        with self.assertRaises(ValueError):
+            ChannelResult("flow", 1.0, "L/min", margin_state="sideways")
+
+    def test_rejects_unknown_verdict_regime(self) -> None:
+        with self.assertRaises(ValueError):
+            ChannelResult("flow", 1.0, "L/min", verdict_regime="vibes")
+
+    def test_marginal_requires_passed_none(self) -> None:
+        # The invariant: a MARGINAL reading is indeterminate, so a pass/fail on it is a bug.
+        with self.assertRaises(ValueError):
+            ChannelResult("flow", 148.5, "L/min", passed=True,
+                          margin_state=MarginState.MARGINAL)
+
+
+# ---------------------------------------------------------------------------
+# RunVerdict — the fifth state (MARGINAL) and its precedence
+# uncertainty-integration-plan §3 / §6 item 2
+# ---------------------------------------------------------------------------
+
+class TestRunVerdictMarginalPrecedence(unittest.TestCase):
+    def _channel(self, *, channel: str, passed: bool | None, margin_state: str) -> ChannelResult:
+        return ChannelResult(channel, 148.5, "L/min", pressure_bar=236.0,
+                             passed=passed, margin_state=margin_state,
+                             provenance=Provenance.MEASURED)
+
+    def test_marginal_beside_pass_is_marginal(self) -> None:
+        rec = _record(channel_results=(
+            self._channel(channel="flow_a", passed=True, margin_state=MarginState.INSIDE),
+            self._channel(channel="flow_b", passed=None, margin_state=MarginState.MARGINAL),
+        ))
+        self.assertEqual(rec.verdict.summary, "MARGINAL")
+        self.assertTrue(rec.verdict.marginal)
+        self.assertIsNone(rec.overall_passed)
+
+    def test_marginal_beside_fail_is_fail(self) -> None:
+        # FAIL (an OUTSIDE reading) beats MARGINAL.
+        rec = _record(channel_results=(
+            self._channel(channel="flow_a", passed=False, margin_state=MarginState.OUTSIDE),
+            self._channel(channel="flow_b", passed=None, margin_state=MarginState.MARGINAL),
+        ))
+        self.assertEqual(rec.verdict.summary, "FAIL")
+        self.assertFalse(rec.overall_passed)
+
+    def test_unknown_beside_pass_is_incomplete(self) -> None:
+        # An expected channel that could not be evaluated (passed=None, margin UNKNOWN)
+        # forces INCOMPLETE even next to a clean pass — the original behaviour, unchanged.
+        rec = _record(channel_results=(
+            self._channel(channel="flow_a", passed=True, margin_state=MarginState.INSIDE),
+            self._channel(channel="flow_b", passed=None, margin_state=MarginState.UNKNOWN),
+        ))
+        self.assertEqual(rec.verdict.summary, "INCOMPLETE")
+        self.assertIsNone(rec.overall_passed)
 
 
 # ---------------------------------------------------------------------------
