@@ -22,8 +22,12 @@ __pycache__/
 # Generated demo outputs
 benchvision_*.png
 
-# demo-simulation — track the docs (.md) and transcripts (.txt); ignore heavy,
-# regenerable, or customer-adjacent binary media.
+# demo-simulation — decision-informing docs (.md) + transcripts (.txt) are LOCAL ONLY
+# (decision-log, spec, digitisation record, captures — they inform later decisions, so per
+# the 2026-06-18 policy they are gitignored, not tracked). Also ignore heavy / regenerable /
+# customer-adjacent binary media.
+demo-simulation/**/*.md
+demo-simulation/**/*.txt
 #   Videos: Devon's WhatsApp clips + screen recordings (large; reference/
 #   customer-adjacent — see spec §9). ** matches the top-level and devon-videos/.
 demo-simulation/**/*.mp4
@@ -87,7 +91,36 @@ bv-hardware-audit/
 memory/
 demo-simulation/devon-videos/
 
-# Kept on purpose — only what is needed to RUN the apps, plus the overview:
-#   DARCSI_OVERVIEW.md, the site HTML (index/hmi/overview/portal/roadmap.html),
-#   vercel.json, and benchvision-app/ (the Python application).
-#   Do NOT add ignore rules for these.
+# =============================================================================
+# CORRECTED 2026-06-18 — Pix's real tracking policy (see CLAUDE.md §9A).
+# Anything that is IP, a decision, or working material that informs a later
+# decision is gitignored AT THE TIME IT IS CREATED and never enters the remote.
+# The remote carries ONLY the runnable product; TimeMachine backs up the local
+# material. (The earlier "full working store / keep DARCSI_OVERVIEW" framing was
+# written in error by an agent — removed.)
+# >> WHEN YOU CREATE such a file, add its path/pattern below in the SAME action.
+# >> Never `git add -A` — stage explicitly.
+# =============================================================================
+
+# Project working memory, status & overview (decision-informing — local only)
+/CLAUDE.md
+/TASKS.md
+/DARCSI_OVERVIEW.md
+
+# Code prompts for Claude Code + session scaffolding (ephemeral working docs)
+*-CODE-PROMPT.md
+/benchvision-code-session-starter-*.md
+
+# Design exports & design-prompt working docs
+/design/
+*-design-prompt.md
+/design-system-design-prompt.md
+
+# Working briefs / checklists / model notes (root — decision-informing)
+/fleet-layer-model-brief.md
+/devon-bench-pc-verification-checklist.md
+
+# Kept on purpose — the RUNNABLE PRODUCT ONLY (do NOT add ignore rules for these):
+#   benchvision-app/ (the Python application + its README),
+#   the deployed site HTML (index/hmi/overview/portal/roadmap.html),
+#   vercel.json.

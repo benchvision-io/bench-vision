@@ -40,13 +40,18 @@ OVERLAY_DIR = HERE.parent / "demo-simulation"
 
 # Digitised PC200-8 chart — nominal flow at each pressure gridline.
 # Source: demo-simulation/pc200-8-chart-digitised-values.md §3.
+#   NOTE: that source doc is a digitisation / IP record kept LOCAL ONLY — it is not in
+#   this remote (per the repo tracking policy: IP/decision material is gitignored; backed
+#   up via TimeMachine). The values below are the self-contained transcription the code
+#   actually uses; the doc only records their provenance, so nothing here depends on it.
 CHART = [
     (0, 224), (50, 223), (100, 222), (130, 224), (150, 194),
     (200, 146), (250, 116), (300, 97), (350, 83), (400, 73),
 ]
 
 # Digitised PC200-8 chart — NOMINAL absorption torque (Nm), read from the printed
-# callout boxes on the clean Fig.1 PDF (2026-06-01; §3 of the digitised-values doc).
+# callout boxes on the clean Fig.1 PDF (2026-06-01; §3 of the digitised-values doc —
+# local-only IP record, see the provenance note above).
 # Supersedes the earlier estimate that plateaued at ~590 — the printed curve climbs to
 # ~627 Nm. The engine now reproduces these via the [efficiency] curve, not a flat 515.
 CHART_TORQUE = [
