@@ -878,7 +878,7 @@ footer {
       <div style="background:var(--navy-mid);padding:2rem;">
         <div style="font-family:var(--mono);font-size:0.68rem;color:var(--teal);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:0.75rem;">02 — E-stop integration</div>
         <div style="font-family:var(--serif);font-size:1.1rem;font-weight:400;color:#fff;margin-bottom:0.75rem;letter-spacing:-0.02em;">Hardware and software working together</div>
-        <div style="font-size:0.88rem;line-height:1.7;color:rgba(255,255,255,0.5);">The physical E-stop button on the bench is wired directly to the hardware relay — hardware safety is always primary. BenchVision also monitors the E-stop digital input on every safety cycle: pressing the button triggers an immediate software shutdown, fault logging with a full sensor snapshot, and a controlled sequence that closes valves and depressurises safely. Both layers must be satisfied for the bench to run.</div>
+        <div style="font-size:0.88rem;line-height:1.7;color:rgba(255,255,255,0.5);">The physical E-stop button on the bench is wired directly to the hardware relay — hardware safety is always primary. The relay performs the physical shutdown: it is what closes valves and depressurises the bench. BenchVision monitors the E-stop digital input on every safety cycle — when the button is pressed it logs the fault with a full sensor snapshot and seals an INCOMPLETE record. It witnesses the stop; it does not perform it.</div>
       </div>
 
       <div style="background:var(--navy-mid);padding:2rem;">
@@ -972,7 +972,7 @@ footer {
             <span class="milestone-status" id="ms7"></span>
           </div>
           <div class="milestone-hrs">16–30 hrs</div>
-          <div class="milestone-detail-text">Dedicated safety thread. YAML alarm limits. Multi-level alarm system with latching and hysteresis. E-stop handling. Full fault logging with sensor snapshot.</div>
+          <div class="milestone-detail-text">Dedicated safety thread. YAML alarm limits. Multi-level alarm system with latching and hysteresis. E-stop monitoring (reads + records the safety-chain input). Full fault logging with sensor snapshot.</div>
         </div>
         <div class="milestone" onclick="toggleMilestone(this)">
           <div class="milestone-header">

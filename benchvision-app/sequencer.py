@@ -31,7 +31,7 @@ Design commitments (each load-bearing, each traceable to a decision):
     spurious FAIL on a good pump. Each graded point is the *median* over a short window of
     ticks straddling the gridpoint. (The full-resolution waveform for the plots is captured
     separately, un-smoothed, by the caller's ``on_tick`` hook.)
-  * **Honest abort.** A fault stops the run safely and still emits a ``RunRecord``: the
+  * **Honest abort.** A fault aborts the run and seals an honest INCOMPLETE ``RunRecord``: the
     captured points are kept as evidence and one graded-but-unevaluated flow result is
     appended so the sealed record reads **INCOMPLETE** (never a silent pass). An audited
     abort is a real outcome.
@@ -320,9 +320,10 @@ class TestSequencer:
         self.builder.add_cleanliness_result(CleanlinessResult(reading, verdict))
 
     def _abort(self, reason: str) -> None:
-        """Stop safely on a fault and seal an honest INCOMPLETE record. The captured points
-        so far are real evidence and are kept; one graded-but-unevaluated flow result is
-        then appended so the run reads INCOMPLETE, never a silent pass."""
+        """Abort on a fault and seal an honest INCOMPLETE record (a record outcome — not a
+        physical-safety action; the software does not bring the bench to a safe state). The
+        captured points so far are real evidence and are kept; one graded-but-unevaluated flow
+        result is then appended so the run reads INCOMPLETE, never a silent pass."""
         self._transition(SequenceState.ABORT)
         self.builder.mark_aborted(reason)
         self._record_channel_results()
