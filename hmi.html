@@ -1,4 +1,18 @@
 <!DOCTYPE html>
+<!--
+  ⚠️ ARCHIVED — REFERENCE ONLY (status recorded 2026-06-17).
+  This April 2026 mockup is SUPERSEDED for channel identity and two gauge colours.
+  Do NOT treat its channel map or colours as current:
+    • Channels: its CH·0–CH·5 / "Flow 1, Flow 2, Pressure 1, Pressure 2, Shaft RPM, Oil temp"
+      predate the verified bench registry. Canonical channels live in
+      benchvision-app/profiles/devon-bench-channels.toml (e.g. shaft RPM = CH·08;
+      pressures = CH·01/02/03/10/11). This bench has NO analogue oil-temperature channel.
+    • Colours: RPM is canonically GREEN #27ae60 (not amber) and temperature LAVENDER
+      #bb8fce (not the purple #8e44ad used for the temp bar here) — see design system §6.
+  Current sources of truth: bench-vision-design-system.md (v1.2) + the registry +
+  design-system-design-prompt.md. Kept for layout reference and history only.
+  See demo-simulation/decision-log.md 2026-06-17.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">

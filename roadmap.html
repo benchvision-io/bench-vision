@@ -797,9 +797,9 @@ const layers = [
     color: 'var(--grn-lt)', border: 'var(--grn-md)', text: 'var(--green)'
   },
   {
-    title: 'Reporting & test certificate',
-    desc: 'Automatic PDF certificate — pass/fail result, graphs, traceable record',
-    detail: 'At test completion the software automatically generates a PDF test certificate containing: component details, test parameters, all channel results, pass/fail assessment against specification limits, pressure and flow graphs, calibration references, and operator sign-off. This is the deliverable the customer receives.',
+    title: 'Reporting & test report',
+    desc: 'Automatic PDF report — pass/fail result, graphs, traceable record',
+    detail: 'At test completion the software automatically generates a PDF test report containing: component details, test parameters, all channel results, pass/fail assessment against specification limits, pressure and flow graphs, calibration references, and operator sign-off. This is the deliverable the customer receives.',
     color: 'var(--amb-lt)', border: 'var(--amb-md)', text: 'var(--amber)'
   }
 ];
@@ -822,7 +822,7 @@ const phases = [
       { id:'M5', name:'State machine', hrs:'16–28', detail:'The full test sequence: IDLE → INITIALISE → RAMP_UP → HOLD → RAMP_DOWN → SHUTDOWN → COMPLETE → REPORT → FAULT. Start/Stop on the HMI. State name displayed. Timer-based transitions. Fault state triggerable for testing. This milestone is the backbone of the entire system.' },
       { id:'M6', name:'PID control', hrs:'12–24', detail:'The PID controller class with anti-windup protection. Simulated proportional valve output. Setpoint tracking in ramp states. Hold pressure maintenance. Gains configurable in a YAML file — no code changes needed to retune. Tested against known inputs with unit tests.' },
       { id:'M7', name:'Safety logic', hrs:'16–30', detail:'The dedicated safety monitor thread. YAML-configured alarm limits with five levels: advisory, warning, alarm, critical, emergency. Alarm latching and hysteresis. E-stop digital input monitoring. Full interlock pre-test checklist. Fault logging with complete sensor snapshot at the moment of fault.' },
-      { id:'M8', name:'Reporting', hrs:'10–20', detail:'PDF test certificate generation using ReportLab. SQLite test register database. Pass/fail assessment against specification limits. CSV export for customer delivery. All test metadata and traceability records written on completion.' },
+      { id:'M8', name:'Reporting', hrs:'10–20', detail:'PDF test report generation using ReportLab. SQLite test register database. Pass/fail assessment against specification limits. CSV export for customer delivery. All test metadata and traceability records written on completion.' },
     ]
   },
   {

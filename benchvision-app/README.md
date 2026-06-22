@@ -22,10 +22,10 @@ Three principles shape every design decision and are worth stating up-front beca
 constrain everything downstream:
 
 1. **Offline-first by design.** The bench is fully usable without network connectivity.
-   Every run record, certificate PDF, supporting PDF and audit event is written to local
+   Every run record, report PDF, supporting PDF and audit event is written to local
    persistent storage the moment it exists. Network is required only for _downstream_
    surfaces (the DARCSI customer portal, OEM telemetry push, profile-update pull) — never
-   to complete a test or release a certificate. Industrial test environments cannot be
+   to complete a test or release a report. Industrial test environments cannot be
    assumed online, and ALCOA+ requires records to be _Available_, not always-online.
 
 2. **Calibration tracking is a foundation, not an add-on.** Each channel carries a sensor
@@ -35,12 +35,12 @@ constrain everything downstream:
    mechanically from the registry. Without traceability the document is a _test report_,
    not a _certificate_; the registry makes the difference automatic and accurate.
 
-3. **Two-layer certificate with privacy of evidence.** Every test generates a **main
-   certificate** (verdict, identity, characteristic curve, per-band grading, one-line cal
+3. **Two-layer report with privacy of evidence.** Every test generates a **main
+   report** (verdict, identity, characteristic curve, per-band grading, one-line cal
    traceability) and a **supporting document** (water content, fluid temperature,
    cleanliness, full per-channel cal references, raw trace, attached cal cert PDFs). Both
    are always generated; distribution is gated at _release_ time, not _render_ time. The
-   customer gets a clean cert; the audit trail exists and is releasable on demand.
+   customer gets a clean report; the audit trail exists and is releasable on demand.
 
 Full scope sketches in [`../docs/forward-requirements-2026-06-03.md`](../docs/forward-requirements-2026-06-03.md).
 Decision-log entries 2026-06-03 (a/b/c) carry the rationale for each.
@@ -75,7 +75,7 @@ all arrive through the profile.
 **Why version-locking matters.** Each formula carries a version tag (`@v1`) and the
 registry refuses to silently overwrite a version with a different function — a changed
 formula must get a new version. Once a formula has produced a result, it is **frozen**,
-so any historical test certificate stays **reconstructable**: you can always re-run the
+so any historical test report stays **reconstructable**: you can always re-run the
 exact maths that produced it. The registry also validates that every required input is
 present before evaluating — a single choke point where a future range-/unit-check
 "caution layer" will attach.
@@ -231,7 +231,7 @@ This is early **Milestone 1 / discovery**. Be honest about the boundary:
 **Not started**
 
 - ⏳ Real DAQ I/O (no hardware driver; the simulator is the only data source today).
-- ⏳ Production operator HMI, safety/interlock layer, certificate/report generation.
+- ⏳ Production operator HMI, safety/interlock layer, report generation.
 
 > **The terminal dashboard is an engine-validation harness, not the product UI.** The
 > production HMI is a separate stack — **Nuxt 4 / Vue 3 / TypeScript** frontend over a

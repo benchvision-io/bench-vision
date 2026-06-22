@@ -1,0 +1,400 @@
+# =============================================================================
+# BENCH CHANNEL MAP + SENSOR REGISTRY  —  Devon's pump bench (FTS / PC9000)
+# =============================================================================
+# ✅ VERIFIED 2026-06-15. Promoted from devon-bench-channels.draft.toml.
+#
+# This is a NEW artefact type, distinct from a pump profile:
+#   • A PUMP PROFILE (e.g. pc200-8-hpv95.toml) = pump-specific chart data,
+#     acceptance bands, and which derived formula computes flow/torque/power.
+#   • THIS FILE = the BENCH's physical channel map + per-channel sensor registry
+#     (what sensor sits on each channel, its signal type, scaling, calibration
+#     traceability, and safety semantics). Bench-specific, pump-agnostic.
+#
+# WHAT CHANGED vs the 0.1 draft (provenance now solid):
+#   • Channel scaling/ranges/units are LOCKED against the *verbatim* cal table
+#     (config/cal.txt) from the 2026-06-12 bench capture — not the photo. Every
+#     one of the 16 channels matched the draft 1:1, so the ranges below are the
+#     bench's own numbers, verbatim.
+#   • Units NORMALISED to convention (see [units]); each channel keeps its
+#     verbatim `raw_label` for traceability.
+#   • Sensor identity + calibration traceability filled from the on-file cal
+#     certs where they exist (Flo-tech flow, MP Filtri ICM). Channels with no
+#     cert remain photo-sourced or `tbc` — nothing invented.
+#   • Per-channel SAFETY-SEMANTICS added (de-energisation / safe-to-approach) —
+#     see [safety] and the `safe_below` / `is_deenergisation_gate` fields.
+#     Thresholds are PROVISIONAL pending Devon's bleed-down answer (TASKS.md).
+#
+# SOURCES:
+#   • config/cal.txt (verbatim) — bench-capture-2026-06-12. 16-channel scaling.
+#   • Flo-tech flow cert  — devon-reference/new-bench/Flo-tech/badge-meter_calibration-certificate.pdf
+#   • MP Filtri ICM cert  — devon-reference/new-bench/ICM/ICM-calibration-certificate.pdf
+#   • Gems 3100 identity  — Devon hardware photos 2026-06-10 (no cert on file).
+#   • WALKTHROUGH.md      — bench-capture-2026-06-12 (channel reconciliation, §2).
+#
+# NOTE on legacy scaling: cal.txt's raw Min/Max Input figures (e.g. 0.4–2.0,
+# 0.021–5) belong to the OLD PC9000 DDE DAQ (serial COM1, confirmed from
+# pump.reg) and are recorded as `legacy_input` for reference only. The NEW
+# BenchVision DAQ (LabJack T7, see [daq]) re-scales from each sensor's own
+# native output, so production scaling is defined by the sensor + calibration
+# blocks, not these legacy numbers.
+# British English throughout.
+# =============================================================================
+
+schema_version = "1.0-verified"
+
+[meta]
+bench_id      = "devon-fts-pump"
+display_name  = "Devon's pump test bench (FTS / PC9000 — legacy, being replaced)"
+channel_count = 16                 # analogue channels in cal.txt; ICM is separate (RS485)
+verified_date = "2026-06-15"
+source_cal_file = "benchvision-working/devon-reference/bench-capture-2026-06-12/config/cal.txt"
+provenance    = "Scaling/ranges/units VERIFIED against verbatim cal.txt (2026-06-12 capture). Sensor identity + cal traceability from on-file certs where available; remainder photo-sourced or tbc."
+status        = "VERIFIED scaling/units; sensor identities partial; safety thresholds provisional (see [open_items])"
+legacy_daq    = "PC9000 DDE on serial COM1 (from pump.reg HKLM\\SOFTWARE\\ftspump comport=1); Windows XP host"
+
+# -----------------------------------------------------------------------------
+# UNIT-CASING CONVENTION (applied to every `unit` below; `raw_label` keeps the
+# verbatim cal.txt casing for traceability).
+#   • Unit symbols are lowercase UNLESS named after a person.
+#   • "bar"   — always lowercase (not a personal name). cal.txt's "Bar" → "bar".
+#   • "kW"    — lowercase k (kilo) + capital W (Watt is a person). "KW" → "kW".
+#   • "L/min" — litre may be l or L; NIST/IEEE prefer capital L to avoid 1/l
+#               confusion. cal.txt's "l/min" (ch14) normalised up to "L/min".
+#   • "RPM"   — not SI (SI-style is r/min). Kept as RPM to match Devon's bench
+#               house style; switch to "rpm" project-wide if preferred.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# DAQ — how BenchVision reads the bench. DECISION OPEN (LabJack T7 leading).
+# 4–20 mA channels: 249/250 Ω burden resistor → voltage (4 mA→~1 V, 20 mA→~5 V):
+#   eng = range_min + (range_max - range_min) * (volts - 1.0) / 4.0
+# 0–5 V channels: read direct on a LabJack AIN.
+# RS485 (ICM): separate USB-to-RS485 adapter, Modbus RTU (see [icm]).
+# -----------------------------------------------------------------------------
+[daq]
+device          = "LabJack T7"     # ⚠ DECISION OPEN — see TASKS.md (Pi 4 demo fallback, NI USB-6001 third)
+analog_inputs   = 14               # T7 native AINs; bench uses 16 → expansion/multiplex needed (FLAG below)
+burden_ohms     = 249.0            # for 4–20 mA channels
+rs485_adapter   = "USB-to-RS485 (FTDI-class)"  # for the ICM
+legacy_interface = "RS-232 serial COM1"        # the PC9000 DDE DAQ a replacement PC must still reach until T7 cutover
+# NOTE: 16 analogue channels > 14 native T7 AINs. Resolve at hardware-spec time
+# (T7 + expansion, T7-Pro, or drop unused channels for the MVP).
+
+# -----------------------------------------------------------------------------
+# SAFETY SEMANTICS — distinguishing COMMANDED-OFF from ACTUALLY DE-ENERGISED.
+# The sequencer's terminal states (COMPLETE/ABORT) are *record* outcomes; they
+# do NOT prove the bench is physically safe. A channel marked
+# `is_deenergisation_gate = true` must read at or below its `safe_below` value
+# (held for `settle_seconds`) before the bench may report SAFE-TO-APPROACH; until
+# then a residual-energy indicator stays AMBER. See the matching build task +
+# the Devon bleed-down question in TASKS.md.
+#
+# ⚠ PROVISIONAL THRESHOLDS — placeholders, not Devon-confirmed. Do not treat as
+# settled until the bleed-down / accumulator / coast-down answer lands.
+# -----------------------------------------------------------------------------
+[safety]
+enabled                 = true
+indicator_default       = "amber"     # safe only on positive confirmation, never by assumption
+settle_seconds          = 5.0         # provisional: hold within safe band this long before asserting SAFE
+pressure_safe_below_bar = 5.0         # provisional near-zero residual-pressure band
+speed_safe_below_rpm    = 10.0        # provisional rotation-ceased band
+note = "Thresholds + which lines truly gate are PROVISIONAL pending Devon (does the bench hold accumulator pressure; auto-vent vs manual dump; coast-down time)."
+
+# === ANALOGUE CHANNELS (verbatim from cal.txt, ch 0–15) ======================
+
+[channel.ch00]
+label        = "Flow"
+raw_label    = "0 Flow"
+role         = "system_flow"
+unit         = "L/min"
+eng_range    = [0, 600]
+legacy_input = [0.4, 2.0]
+signal       = "current_4_20mA"        # Flo-tech F6228: 4–20 mA via 249 Ω burden → ~1–5 V at the LabJack AIN
+is_deenergisation_gate = false
+[channel.ch00.sensor]
+# IDENTITY RESOLVED (Pix, 2026-06-15): the NEW bench's flow sensor is the
+# Flo-tech/Badger F6228 — Devon's "red flow meter". Confirmed by its filing under
+# benchvision-working/devon-reference/new-bench/ (new-bench kit, not legacy). It
+# REPLACES the legacy bench's Hydrotechnik RE 4-600 (see legacy_predecessor;
+# that meter stays on the old bench and has no cert by design).
+manufacturer = "Badger Meter (Flo-tech)"
+model        = "F6228-AIB-T6"
+description  = "Flow sensor, F/I, QPT, G1-1/4 (P/F/T diagnostic block)"
+serial       = "062501A031"            # from cert; an earlier note had 052501A031 — cert is authoritative (flag transcription)
+sensor_type  = "magnetic pickup"
+output       = "4–20 mA"
+flow_range   = "8–160 GPM / 30.3–605.7 L/min"   # covers the cal.txt 0–600 ch00 range
+accuracy_fs  = "±0.05%"
+identity_status = "RESOLVED — new bench = Flo-tech F6228 (Pix 2026-06-15, confirmed by /new-bench filing)"
+legacy_predecessor = "Hydrotechnik RE 4-600, s/n 20773, cal value 207.8, cal @ 30 cSt — the LEGACY bench's flow meter (no cert, stays on the old bench)."
+[channel.ch00.calibration]
+lab            = "Badger Meter Inc., Racine, WI, USA"
+cal_date       = "2025-01-30"
+cal_interval_months = 12
+cal_due        = "2026-01-30"          # ⚠ EXPIRED as of 2026-06-15 — does NOT block the run; operator acknowledges (expiry stated + recal recommended). No certificate issuable for that run until recalibrated.
+cal_liquid     = "Mobil DTE 24"
+cal_viscosity_cst = 35.96
+cal_specific_gravity = 0.871
+nominal_k_lpm  = 79.158
+nominal_k_gpm  = 299.645
+master_meter   = "CDX40-FI-C-R, s/n 2007000033, traceability TFM-4209, recal 2025-03-04, std uncertainty ±0.25%"
+traceability   = "NIST; ISO 9001:2015"
+result         = "PASS"
+cal_by         = "Korbyn Friske"
+certified_by   = "Alvin Jach"
+cert_doc       = "QS 247 Rev C"
+cert_pdf       = "benchvision-working/devon-reference/new-bench/Flo-tech/badge-meter_calibration-certificate.pdf"
+
+[channel.ch01]
+label        = "Main Pressure"
+raw_label    = "1 Main Pressure"
+role         = "main_delivery_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.021, 5.0]
+signal       = "tbc"                   # likely 0–5 V (Gems-class) or 4–20 mA — confirm
+is_deenergisation_gate = true          # primary energy-bearing line for safe-to-approach
+[channel.ch01.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch02]
+label        = "LS High Press"
+raw_label    = " LS High Press"
+role         = "load_sense_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.033, 4.3]
+signal       = "tbc"
+is_deenergisation_gate = true
+[channel.ch02.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch03]
+label        = "Pressure B"
+raw_label    = "3 Pressure B"
+role         = "closed_loop_b_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.007, 5.0]
+signal       = "tbc"
+is_deenergisation_gate = true
+[channel.ch03.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch04]
+label        = "Servo F"
+raw_label    = "Servo F"
+role         = "servo_forward_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.490, 2.4]
+signal       = "tbc"
+is_deenergisation_gate = false         # control-pressure line; monitored, not a primary gate (confirm w/ Devon)
+[channel.ch04.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch05]
+label        = "TVC"
+raw_label    = "TVC"
+role         = "tvc_pressure"          # torque/variable control — confirm meaning with Devon
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.490, 2.4]
+signal       = "tbc"
+is_deenergisation_gate = false
+[channel.ch05.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch06]
+label        = "Pilot"
+raw_label    = "Pilot"
+role         = "pilot_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.487, 2.4]
+signal       = "tbc"
+is_deenergisation_gate = false
+[channel.ch06.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch07]
+label        = "Servo R"
+raw_label    = "Servo R"
+role         = "servo_return_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0.481, 2.4]
+signal       = "tbc"
+is_deenergisation_gate = false
+[channel.ch07.sensor]
+manufacturer = "tbc"
+range        = "0–700 bar"
+
+[channel.ch08]
+label        = "RPM"
+raw_label    = "RPM"
+role         = "shaft_speed"
+unit         = "RPM"
+eng_range    = [0, 1482]
+legacy_input = [0, 10]
+signal       = "tbc"                   # speed pickup — frequency or 0–10 V — confirm
+is_deenergisation_gate = true          # rotation-ceased gate (uses speed_safe_below_rpm)
+[channel.ch08.sensor]
+manufacturer = "tbc"
+range        = "0–1482 RPM"
+
+[channel.ch09]
+label        = "kW"
+raw_label    = "KW"
+role         = "input_power"
+unit         = "kW"
+eng_range    = [0, 132]
+legacy_input = [0, 10]
+signal       = "tbc"                   # ⚠ cal.txt wires a 0–10 V analogue input here (MEASURED), but BenchVision
+                                       # DERIVES power from flow×pressure. Do NOT derive on top of a measured kW —
+                                       # it double-counts. Confirm with Devon: real watt-meter, or computed upstream?
+is_deenergisation_gate = false
+[channel.ch09.sensor]
+manufacturer = "tbc"
+range        = "0–132 kW"
+
+[channel.ch10]
+label        = "Pressure A"
+raw_label    = "10 Pressure A"
+role         = "closed_loop_a_pressure"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0, 5.0]
+signal       = "voltage_0_5V"          # CONFIRMED: matches the Gems 3100 0–5 V / 0–700 bar label (photo)
+is_deenergisation_gate = true
+[channel.ch10.sensor]
+manufacturer = "Gems Sensors"
+model        = "3100 series"
+part_number  = "3100R0700S01B000"
+serial       = "tbc"                   # no cert on file — identity from photo
+range        = "0–700 bar"
+output       = "0–5 V"
+supply       = "8–30 V dc"
+made_in      = "England"
+[channel.ch10.calibration]
+status = "tbc — no calibration certificate on file for the Gems 3100s"
+
+[channel.ch11]
+label        = "Pressure B"
+raw_label    = "11 Pressure B"
+role         = "closed_loop_b_pressure_2"
+unit         = "bar"
+eng_range    = [0, 700]
+legacy_input = [0, 5.0]
+signal       = "voltage_0_5V"          # likely a second Gems 3100 (0–5 V) — confirm serial
+is_deenergisation_gate = true
+[channel.ch11.sensor]
+manufacturer = "Gems Sensors"
+model        = "3100 series (assumed — matches ch10 signal/range)"
+serial       = "tbc"
+range        = "0–700 bar"
+output       = "0–5 V"
+note         = "Duplicate 'Pressure B' label with ch03 — labelling-discipline question for Devon; roles disambiguated here."
+
+[channel.ch12]
+label        = "P1"
+raw_label    = "12 P1"
+role         = "aux_pressure_p1"
+unit         = "bar"
+eng_range    = [0, 400]
+legacy_input = [0.475, 2.4]
+signal       = "tbc"
+is_deenergisation_gate = false
+[channel.ch12.sensor]
+manufacturer = "tbc"
+range        = "0–400 bar"
+
+[channel.ch13]
+label        = "P2"
+raw_label    = "13 P2"
+role         = "aux_pressure_p2"
+unit         = "bar"
+eng_range    = [0, 400]
+legacy_input = [0.475, 2.4]
+signal       = "tbc"
+is_deenergisation_gate = false
+[channel.ch13.sensor]
+manufacturer = "tbc"
+range        = "0–400 bar"
+
+[channel.ch14]
+label        = "Case Drain"
+raw_label    = "Case Drain"
+role         = "case_drain_flow"
+unit         = "L/min"                 # normalised from cal.txt "l/min"
+eng_range    = [0, 75]
+legacy_input = [2.0, 10.0]
+signal       = "tbc"                   # second, smaller flow meter (0–75 L/min) — make/model TBC, different from ch00
+is_deenergisation_gate = false
+[channel.ch14.sensor]
+manufacturer = "tbc"
+range        = "0–75 L/min"
+note         = "Low-range leakage-flow meter on the case-drain port; neither the Flo-tech (30–605 L/min) nor Hydrotechnik (25–600) covers 0–75 — a distinct third flow sensor."
+
+[channel.ch15]
+label        = "P4"
+raw_label    = "15 P4"
+role         = "aux_pressure_p4"
+unit         = "bar"
+eng_range    = [0, 400]
+legacy_input = [0.475, 2.4]
+signal       = "tbc"
+is_deenergisation_gate = false
+[channel.ch15.sensor]
+manufacturer = "tbc"
+range        = "0–400 bar"
+
+# (The Flo-tech F6228 is now the ch00 new-bench flow sensor — see [channel.ch00].
+#  It is no longer recorded as a separate handheld instrument.)
+
+# === DIGITAL INSTRUMENT (separate from the 16 analogue channels) =============
+# Cleanliness via RS485 Modbus, NOT an analogue channel. Full register map +
+# wiring + pymodbus in:
+#   benchvision-working/devon-reference/new-bench/ICM/ICM-modbus-integration-brief.md
+[icm]
+role          = "fluid_cleanliness"
+manufacturer  = "MP Filtri UK Ltd"
+model         = "ICM 2.0"
+product_code  = "ICMWMKUG32.0"
+serial        = "16112382"
+signal        = "modbus_rs485"
+protocol      = "Modbus RTU, 8-E-1, node 204"
+reports       = "ISO 4406:1999 code (reg 56–63), temp (33), water/RH (34), flow (37), status (30)"
+notes         = "SIMULATE mode (reg 20 bit 7) lets us develop against the real unit with no fluid."
+[icm.calibration]
+lab            = "MP Filtri UK Ltd, Keep House, Conference Way, Vale Park South, Evesham, England WR11 1LS"
+cert_number    = "280126"
+cal_date       = "2026-01-28"
+recal_due      = "1 year from first use (per ICM diagnostics)"
+cal_rig        = 367
+mtd_batch      = "12798M"
+standards      = "ISO 11171 / ISO 11943; DIN ISO 9001"
+result         = "PASS"
+cal_by         = "J Whittle"
+cert_pdf       = "benchvision-working/devon-reference/new-bench/ICM/ICM-calibration-certificate.pdf"
+file_note      = "The file 'sensors-literature/Turbine-flow-sensor-calibration-certificate.pdf' is MISLABELLED — it is a duplicate of THIS ICM cert (serial 16112382), not a turbine-flow cert. Rename/relabel at convenience."
+
+# -----------------------------------------------------------------------------
+[open_items]
+# Tracks what is still NOT locked, so nothing is mistaken for settled:
+items = [
+  "ch00 flow sensor = Flo-tech F6228 on the new bench (RESOLVED — Pix 2026-06-15, confirmed by /new-bench filing). Legacy Hydrotechnik RE 4-600 stays on the old bench. ⚠ Flo-tech cal_due 2026-01-30 is EXPIRED — does NOT block the run (operator acknowledges + recal recommended); it blocks CERTIFICATE issuance for that run once the cert rejoins the product (policy Pix 2026-06-15).",
+  "ch01–07, 12, 13, 15 sensor identities + signal types — tbc (no certs, no photos).",
+  "ch08 RPM + ch09 kW signal types — tbc; resolve measured-kW (ch09) vs BenchVision derived-power (do not double-count).",
+  "ch14 case-drain low-range flow meter — make/model tbc.",
+  "Gems 3100 serials (ch10/11) + their calibration status — tbc (no cert on file).",
+  "SAFETY: residual-pressure/de-energisation thresholds + which lines truly gate — PROVISIONAL pending Devon's bleed-down/accumulator/coast-down answer (TASKS.md Devon open points).",
+  "Alarm thresholds: cal.txt sets every channel to -10/1000 (no real alarms) — decide BenchVision's own alarm/safe-band policy.",
+  "Resolve 16 analogue channels vs 14 native T7 AINs (DAQ decision still open).",
+]

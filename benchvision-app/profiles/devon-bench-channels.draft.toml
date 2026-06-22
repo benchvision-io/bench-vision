@@ -1,6 +1,13 @@
 # =============================================================================
 # BENCH CHANNEL MAP + SENSOR REGISTRY  —  Devon's pump bench (FTS/PC9000)
 # =============================================================================
+# ⛔ SUPERSEDED 2026-06-15 by devon-bench-channels.toml (1.0-verified).
+#    This 0.1 draft is kept for history only — do NOT build from it.
+#    The verified file locks the ranges/units against the verbatim cal.txt,
+#    fills cal traceability from the on-file certs, corrects ch00 (Hydrotechnik
+#    RE 4-600 on the legacy bench; Flo-tech is the handheld), and adds the
+#    safety/de-energisation semantics.
+#
 # ⚠ DRAFT / PROVISIONAL — first cut, 2026-06-10.
 #
 # This is a NEW artefact type, distinct from a pump profile:
