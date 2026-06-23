@@ -31,6 +31,7 @@ except ModuleNotFoundError:  # pragma: no cover - validation on older interprete
     import tomli as tomllib  # type: ignore[no-redef]
 
 from cleanliness import CleanlinessLimit
+from test_definition import TestDefinition
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +186,7 @@ class PumpProfile:
     acceptance: Mapping[str, AcceptanceBand]
     efficiency: EfficiencyCurve | None = None
     cleanliness: CleanlinessLimit | None = None
+    test: TestDefinition | None = None
     source_path: Path | None = None
 
     # -- loading ------------------------------------------------------------
@@ -268,6 +270,16 @@ class PumpProfile:
                 fallback=float(eff_raw.get("fallback", displacement.mech_efficiency)),
             )
 
+        # Test definition — the sequence-intent seam (points + per-point settle), as
+        # explicit data. Derived FROM the flow band's gridpoints (one source of truth), so
+        # the points are never duplicated alongside the band. Absent [test] → None here; the
+        # sequencer synthesises a default from the band (see TestDefinition.default_for_band).
+        test = TestDefinition.from_raw(
+            raw.get("test"),
+            flow_band=acceptance.get("flow"),
+            source=str(raw.get("identity", {}).get("id", "") or (source_path.name if source_path else "")),
+        )
+
         return cls(
             schema_version=str(raw.get("schema_version", "1.0")),
             identity=dict(raw.get("identity", {})),
@@ -280,6 +292,7 @@ class PumpProfile:
             acceptance=acceptance,
             efficiency=efficiency,
             cleanliness=cleanliness,
+            test=test,
             source_path=source_path,
         )
 

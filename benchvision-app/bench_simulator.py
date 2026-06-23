@@ -125,13 +125,25 @@ class PressureChannel(SensorChannel):
     Pressure transducer (0-500 bar, 4-20 mA).
     Simulates pump startup ramp, pressure hold, and unload.
     """
-    ramp_up_time: float = 30.0      # Seconds to reach target pressure
+    ramp_up_time: float = 30.0      # Seconds to reach target pressure (legacy single-ramp)
     ramp_down_time: float = 20.0    # Seconds to unload
-    target_pressure: float = 350.0  # Bar, typical operating setpoint
-    hold_time: float = 60.0         # Seconds at target before ramp down
+    target_pressure: float = 350.0  # Bar, typical operating setpoint (legacy single-ramp)
+    hold_time: float = 60.0         # Seconds at target before ramp down (legacy single-ramp)
+
+    # -- definition-driven staircase (sequence-intent seam) ------------------------------
+    # When ``hold_points`` is set (via ``set_hold_sequence``, from the test definition), the
+    # cycle becomes a STAIRCASE: ramp to each declared point, park (a genuine flat hold), step
+    # to the next, then unload. This makes every operating point a real *settled hold* — so a
+    # measured-settle capture is honest at each, not just at the top. Empty (the default) keeps
+    # the legacy single ramp-hold-unload unchanged for any caller that does not set it.
+    step_ramp_rate: float = 12.0    # Bar/s between staircase holds (≈ the single-ramp feel)
+    point_hold_time: float = 4.0    # Seconds parked at each staircase hold point
+    hold_points: tuple[float, ...] = ()   # Ordered hold pressures; empty = legacy single ramp
 
     cycle_start_time: float = field(default=0.0, init=False)
     cycle_phase: str = field(default="idle", init=False)
+    _stair_idx: int = field(default=0, init=False)
+    _descent_from: float = field(default=0.0, init=False)
 
     def __post_init__(self) -> None:
         if not (0 < self.target_pressure < 500):
@@ -140,15 +152,56 @@ class PressureChannel(SensorChannel):
             )
         super().__post_init__()
 
+    def set_hold_sequence(
+        self,
+        points,
+        *,
+        hold_time: float | None = None,
+        step_rate: float | None = None,
+    ) -> None:
+        """Configure the staircase: an ordered list of hold pressures the cycle parks at in
+        turn. Set from the test definition's operating points (see ``TestDefinition``). With
+        this set, ``tick`` produces a settled flat hold at each point; without it, the legacy
+        single ramp is used. ``hold_time`` / ``step_rate`` override the per-point dwell and the
+        inter-point ramp rate."""
+        self.hold_points = tuple(sorted(float(p) for p in points))
+        if hold_time is not None:
+            self.point_hold_time = float(hold_time)
+        if step_rate is not None:
+            self.step_ramp_rate = float(step_rate)
+        self._stair_idx = 0
+
+    def planned_duration(self) -> float:
+        """Total seconds for one cycle — used to bound the run loop. Sums the staircase
+        (ramp-to-each-point + per-point hold + final unload) when ``hold_points`` is set,
+        else the legacy ramp-up + hold + ramp-down."""
+        if self.hold_points:
+            prev = 0.0
+            total = 0.0
+            for p in self.hold_points:
+                if self.step_ramp_rate > 0:
+                    total += max(p - prev, 0.0) / self.step_ramp_rate
+                total += self.point_hold_time
+                prev = p
+            return total + self.ramp_down_time
+        return self.ramp_up_time + self.hold_time + self.ramp_down_time
+
     def start_test_cycle(self) -> None:
-        """Begin a pressure ramp-up from idle."""
+        """Begin a pressure ramp-up from idle (staircase if ``hold_points`` is set)."""
         self.cycle_start_time = self.timestamp
         self.cycle_phase = "ramp_up"
         self.state = ChannelState.RAMP_UP
-        logger.info(
-            f"{self.name}: Starting test cycle, ramping to "
-            f"{self.target_pressure} bar over {self.ramp_up_time}s"
-        )
+        self._stair_idx = 0
+        if self.hold_points:
+            logger.info(
+                f"{self.name}: Starting staircase test cycle over "
+                f"{len(self.hold_points)} hold points: {self.hold_points} bar"
+            )
+        else:
+            logger.info(
+                f"{self.name}: Starting test cycle, ramping to "
+                f"{self.target_pressure} bar over {self.ramp_up_time}s"
+            )
 
     def inject_fault_overpressure(self) -> None:
         """Simulate pressure overshoot (pump cavitation or relief valve failure)."""
@@ -159,10 +212,21 @@ class PressureChannel(SensorChannel):
         )
 
     def tick(self, dt: float) -> None:
-        """Advance pressure sensor through test cycle."""
+        """Advance pressure sensor through test cycle (staircase or legacy single ramp)."""
         super().tick(dt)
         elapsed = self.timestamp - self.cycle_start_time
 
+        if self.hold_points:
+            self._tick_staircase(elapsed)
+        else:
+            self._tick_single_ramp(elapsed)
+
+        self.current_value = self.clamp(self.current_value)
+        if self.state != ChannelState.FAULT:
+            self.current_value = self.apply_noise(self.current_value)
+
+    def _tick_single_ramp(self, elapsed: float) -> None:
+        """Legacy ramp-up → hold → ramp-down to a single ``target_pressure`` (unchanged)."""
         if self.cycle_phase == "ramp_up":
             if elapsed < self.ramp_up_time:
                 self.current_value = (elapsed / self.ramp_up_time) * self.target_pressure
@@ -191,9 +255,52 @@ class PressureChannel(SensorChannel):
                 self.state = ChannelState.IDLE
                 logger.info(f"{self.name}: Cycle complete")
 
-        self.current_value = self.clamp(self.current_value)
-        if self.state != ChannelState.FAULT:
-            self.current_value = self.apply_noise(self.current_value)
+    def _tick_staircase(self, elapsed: float) -> None:
+        """Definition-driven staircase: ramp to ``hold_points[_stair_idx]``, park there for a
+        genuine flat hold, step to the next point, and unload after the last. Sets the
+        deterministic trajectory only — the single trailing ``apply_noise`` in ``tick`` adds the
+        same Gaussian jitter at every sample, so a hold reads as a flat (settleable) signal and a
+        ramp segment reads as a moving (un-settleable) one. The sequencer never reads
+        ``cycle_phase`` — progression is decided by the measured settle test, not this phase."""
+        pts = self.hold_points
+        idx = self._stair_idx
+
+        if self.cycle_phase == "ramp_up":
+            target = pts[idx]
+            prev = pts[idx - 1] if idx > 0 else 0.0
+            span = max(target - prev, 0.0)
+            duration = (span / self.step_ramp_rate) if self.step_ramp_rate > 0 else 0.0
+            if duration > 0 and elapsed < duration:
+                self.current_value = prev + (elapsed / duration) * span
+            else:
+                self.current_value = target
+                self.cycle_phase = "hold"
+                self.cycle_start_time = self.timestamp
+                self.state = ChannelState.HOLD
+
+        elif self.cycle_phase == "hold":
+            if elapsed < self.point_hold_time:
+                self.current_value = pts[idx]
+            elif idx + 1 < len(pts):
+                self._stair_idx = idx + 1
+                self.cycle_phase = "ramp_up"
+                self.cycle_start_time = self.timestamp
+                self.state = ChannelState.RAMP_UP
+            else:
+                self._descent_from = pts[-1]
+                self.cycle_phase = "ramp_down"
+                self.cycle_start_time = self.timestamp
+                self.state = ChannelState.RAMP_DOWN
+                logger.info(f"{self.name}: All hold points visited; unloading pressure")
+
+        elif self.cycle_phase == "ramp_down":
+            if elapsed < self.ramp_down_time:
+                self.current_value = self._descent_from * (1 - elapsed / self.ramp_down_time)
+            else:
+                self.current_value = 0
+                self.cycle_phase = "idle"
+                self.state = ChannelState.IDLE
+                logger.info(f"{self.name}: Cycle complete")
 
 
 # ============================================================================

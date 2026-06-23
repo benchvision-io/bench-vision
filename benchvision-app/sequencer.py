@@ -12,10 +12,15 @@ verdict and the certificate fall out.
 
 Design commitments (each load-bearing, each traceable to a decision):
 
-  * **Orchestrates, never re-implements physics.** Phase transitions are keyed off the
-    simulator's own ``pressure.cycle_phase``; the sequencer advances *its* state when the
-    underlying cycle moves. It drives ``start_test`` / ``tick`` / the discrete cleanliness
-    steps — it does not replace them.
+  * **Driven by the test DEFINITION, not the sim's physics (the sequence-intent seam,
+    decision-log 2026-06-18 / 2026-06-22).** Progression is decided by an explicit
+    :class:`~test_definition.TestDefinition` — the ordered operating points and a per-point
+    **settle condition in observable channel terms** — never by reading the simulator's
+    ``pressure.cycle_phase``. The sequencer advances to each declared point, waits until the
+    pure :func:`~test_definition.is_settled` test says the point has *measurably settled*,
+    captures, and moves on. A live bench has no ``cycle_phase`` to borrow; the same settle
+    test reads a real transducer identically. It still orchestrates ``start_test`` / ``tick``
+    / the discrete cleanliness steps — it does not re-implement the physics.
   * **The provenance / live-mode seam (forward-requirements §1).** Values are read through
     a :class:`ChannelSource`, which *declares* its own provenance. The simulator's
     formula-driven channels are ``derived`` (it has no sensors) and carry their formula id;
@@ -26,10 +31,11 @@ Design commitments (each load-bearing, each traceable to a decision):
   * **Flow is the pass/fail truth; torque is a monitored reference** (decision-log
     2026-06-01). Each captured flow point is graded against the profile's flow band; torque
     is recorded ``graded=False``.
-  * **Smoothed grading capture.** The DAQ adds Gaussian noise, so a single instantaneous
-    sample at a band gridpoint could land outside a tight band purely from noise — a
-    spurious FAIL on a good pump. Each graded point is the *median* over a short window of
-    ticks straddling the gridpoint. (The full-resolution waveform for the plots is captured
+  * **Settle-gated, smoothed grading capture.** A point is captured only once it has
+    measurably *settled* (target pressure reached and the settle channel stable for a dwell —
+    ``is_settled``), never on the way up the ramp. The DAQ adds Gaussian noise, so each graded
+    point is also the *median* over the smoothing window so a single noisy sample cannot push
+    a good pump outside a tight band. (The full-resolution waveform for the plots is captured
     separately, un-smoothed, by the caller's ``on_tick`` hook.)
   * **Honest abort.** A fault aborts the run and seals an honest INCOMPLETE ``RunRecord``: the
     captured points are kept as evidence and one graded-but-unevaluated flow result is
@@ -69,6 +75,11 @@ from run_record import (
     RunRecord,
     RunRecordBuilder,
     utc_now_iso,
+)
+from test_definition import (
+    TestDefinition,
+    derive_gridpoints,
+    is_settled,
 )
 
 logger = logging.getLogger(__name__)
@@ -148,9 +159,14 @@ def default_grid_pressures(profile: PumpProfile) -> tuple[float, ...]:
     """The pressures to grade at: the flow band's own gridpoint pressures (excluding the
     no-load 0-bar point). Grading at the same pressures the band is defined at is chart-
     faithful and bounded, and avoids the spurious near-edge fails a fixed time cadence
-    invites."""
-    band = profile.acceptance["flow"]
-    return tuple(sorted({p for p, _u, _l in band.points if p > 0}))
+    invites.
+
+    Routed through the **test definition** when the profile carries one, so the points come
+    from a single source of truth (the definition itself derives them from the flow band).
+    Falls back to deriving straight from the band for profiles without a ``[test]`` section."""
+    if profile.test is not None:
+        return profile.test.point_pressures
+    return derive_gridpoints(profile.acceptance["flow"])
 
 
 # ---------------------------------------------------------------------------
@@ -166,10 +182,12 @@ class TestSequencer:
     builder: RunRecordBuilder
     sources: dict[str, ChannelSource]
     grid_pressures: tuple[float, ...] = ()
+    test_def: TestDefinition | None = None   # the sequence intent; from the profile if None
     realtime: bool = False
     smoothing_window: int = 7            # ticks per graded-point median (~0.7 s at 10 Hz)
     incoming_sample: CleanlinessReading | None = None   # as-found evidence (optional)
     reference: str = ""                  # PO / serial written alongside cleanliness reads
+    cooldown_done_bar: float = 5.0       # observed pressure below this = unloaded → run ends
 
     state: SequenceState = field(default=SequenceState.IDLE, init=False)
     history: list[SequenceState] = field(default_factory=list, init=False)
@@ -178,10 +196,26 @@ class TestSequencer:
     _window: deque = field(default=None, init=False, repr=False)   # type: ignore[assignment]
 
     def __post_init__(self) -> None:
+        # Resolve the sequence intent: the profile's [test] definition, else a default
+        # synthesised from the flow band. The sequencer reads the run from THIS, not from the
+        # simulator's cycle_phase — the seam this whole change closes.
+        if self.test_def is None:
+            self.test_def = (
+                self.sim.profile.test
+                or TestDefinition.default_for_band(self.sim.profile.acceptance["flow"])
+            )
         if not self.grid_pressures:
-            self.grid_pressures = default_grid_pressures(self.sim.profile)
+            self.grid_pressures = self.test_def.point_pressures
         if self.smoothing_window < 1:
             raise ValueError("smoothing_window must be >= 1")
+        # The settle test reads the last ``for_ticks`` of the smoothing window, so the window
+        # must be at least as long as the longest dwell any point asks for.
+        max_dwell = max((p.settle.for_ticks for p in self.test_def.points), default=1)
+        if max_dwell > self.smoothing_window:
+            raise ValueError(
+                f"smoothing_window ({self.smoothing_window}) must be >= the longest settle "
+                f"dwell ({max_dwell} ticks)"
+            )
         self._window = deque(maxlen=self.smoothing_window)
         self.history.append(self.state)   # IDLE is the initial state
 
@@ -208,16 +242,14 @@ class TestSequencer:
         self._transition(SequenceState.PRE_FLIGHT)
         self._preflight()
 
+        # Drive the run from the test DEFINITION, not the simulator's physics. Configure the
+        # sim to park at each declared operating point (a genuine settled hold at each); the
+        # progression below is decided by the measured-settle test, never by ``cycle_phase``.
+        self._configure_sim_sequence()
         self.sim.start_test()
         self._transition(SequenceState.RAMP)
 
-        phase_to_state = {
-            "ramp_up": SequenceState.RAMP,
-            "hold": SequenceState.MEASURE,
-            "ramp_down": SequenceState.COOLDOWN,
-        }
         cap = self._tick_cap()
-        seen_cooldown = False
 
         while True:
             self.sim.tick()
@@ -232,19 +264,18 @@ class TestSequencer:
                 )
                 return self.builder.finish(utc_now_iso())
 
-            phase = self.sim.pressure.cycle_phase
-            new_state = phase_to_state.get(phase)
-            if new_state is not None:
-                self._transition(new_state)
-            if self.state is SequenceState.COOLDOWN:
-                seen_cooldown = True
+            self._observe()          # push this sample onto the smoothing window
+            self._maybe_capture()    # settle-gated capture; RAMP → MEASURE on the first
 
-            if self.state in (SequenceState.RAMP, SequenceState.MEASURE):
-                self._maybe_capture()
+            # All declared points captured → cooldown, then end the loop once the bench has
+            # UNLOADED. Termination is an observable condition (pressure near zero), not the
+            # sim's cycle_phase — a real bench has no phase string to read.
+            if self._all_points_captured():
+                if self.state in (SequenceState.RAMP, SequenceState.MEASURE):
+                    self._transition(SequenceState.COOLDOWN)
+                if self.sim.pressure.current_value <= self.cooldown_done_bar:
+                    break
 
-            # The pressure cycle has returned to idle after a cooldown — run is done.
-            if phase == "idle" and seen_cooldown:
-                break
             if self.sim.sample_count >= cap:
                 logger.warning("tick cap %d reached; ending loop", cap)
                 break
@@ -265,20 +296,51 @@ class TestSequencer:
         res = self.sim.run_cleanliness_test("rig_supply", self.reference)
         self.builder.add_cleanliness_result(CleanlinessResult(res["reading"], verdict=None))
 
-    def _maybe_capture(self) -> None:
-        """Accumulate a rolling window of (pressure, flow, torque); when the rising
-        pressure first reaches an un-captured gridpoint and the window is full, record the
-        median of the window as one graded operating point."""
+    def _configure_sim_sequence(self) -> None:
+        """Tell the simulator to park at each declared operating point in turn (a genuine
+        flat hold at each), so a measured-settle capture is honest at every point — not just
+        the top one a single ramp would hold at. This is the sim *source* realising the test
+        definition; it is the only sim-specific step. A live source needs no equivalent — the
+        operator brings the bench to each point — and the rest of the loop is identical."""
+        press = getattr(self.sim, "pressure", None)
+        if press is not None and hasattr(press, "set_hold_sequence"):
+            press.set_hold_sequence(self.grid_pressures, hold_time=self.test_def.hold_seconds)
+
+    def _observe(self) -> None:
+        """Push this tick's (pressure, flow, torque) onto the rolling smoothing window. Flow
+        and torque are read *through the source* (provenance seam); pressure is the swept
+        independent variable, read directly."""
         self._window.append({
             "pressure": self.sim.pressure.current_value,
             "flow": self.sources["flow"].read(),
             "torque": self.sources["torque"].read(),
         })
+
+    def _maybe_capture(self) -> None:
+        """Capture an operating point ONLY when it has measurably **settled** — the point's
+        target pressure reached and the settle channel stable for the dwell (``is_settled``,
+        pure channel terms). This is the gate that retires the old rising-ramp capture: a
+        point is recorded as the median of the smoothing window, gated on *settled*, never on
+        merely crossing the target. ``RAMP → MEASURE`` on the first capture."""
         if len(self._window) < self.smoothing_window:
             return
-        p_now = self.sim.pressure.current_value
+        pressure_window = [s["pressure"] for s in self._window]
         for target in self.grid_pressures:
-            if target in self._captured_targets or p_now < target:
+            if target in self._captured_targets:
+                continue
+            cond = self.test_def.settle_at(target)
+            channel_window = (
+                [s[cond.channel] for s in self._window]
+                if cond.channel in self._window[0]
+                else pressure_window
+            )
+            if not is_settled(
+                cond,
+                target_bar=target,
+                pressure_window=pressure_window,
+                channel_window=channel_window,
+                dt=self.sim.dt,
+            ):
                 continue
             self._captures.append({
                 "pressure": median(s["pressure"] for s in self._window),
@@ -286,6 +348,11 @@ class TestSequencer:
                 "torque": median(s["torque"] for s in self._window),
             })
             self._captured_targets.add(target)
+            if self.state is SequenceState.RAMP:
+                self._transition(SequenceState.MEASURE)
+
+    def _all_points_captured(self) -> bool:
+        return len(self._captured_targets) >= len(self.grid_pressures)
 
     def _record_channel_results(self) -> None:
         """Turn the captured operating points into graded flow + monitored-reference torque
@@ -344,10 +411,10 @@ class TestSequencer:
         return [ch.name for ch in self.sim.channels if ch.state == ChannelState.FAULT]
 
     def _tick_cap(self) -> int:
-        """A generous upper bound on ticks, derived from the pressure cycle, so the loop
-        can never spin forever if the cycle never returns to idle."""
-        p = self.sim.pressure
-        secs = p.ramp_up_time + p.hold_time + p.ramp_down_time + 20.0
+        """A generous upper bound on ticks, derived from the pressure cycle's planned
+        duration (staircase or legacy), so the loop can never spin forever if settle never
+        fires or the bench never unloads."""
+        secs = self.sim.pressure.planned_duration() + 20.0
         return int(secs * self.sim.sample_rate_hz)
 
 

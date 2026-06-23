@@ -244,3 +244,35 @@ points = [
 mode     = "cleanliness_code"
 standard = "ISO4406:1999"
 target   = "18/16/13"
+
+# -----------------------------------------------------------------------------
+# Test definition — the SEQUENCE INTENT, as explicit data (decision-log 2026-06-18 /
+# 2026-06-22: "grading happens on a measured settled hold at each gridpoint").
+#
+# This is the *sequence-intent* seam, distinct from the *provenance* seam (derived-vs-
+# measured, already built in sequencer.py). It answers WHAT the test intends — the ordered
+# operating points and WHEN each is settled — read by three consumers from this one block:
+# the manual checklist, the sim sequencer, and a future live sequencer.
+#
+# The points are DERIVED from the flow acceptance band's own gridpoints (the
+# `operating_points` token below), so there is ONE source of truth — the band says what
+# good looks like AND where we grade; this section adds only "what to do and when each step
+# is done". Settle is stated ONLY in observable channel terms (pressure at target + stable
+# for a dwell) — never the simulator's `cycle_phase` — so the same condition is evaluable
+# by a real transducer, identically to the sim. See test_definition.py.
+# -----------------------------------------------------------------------------
+[test]
+operating_points = "acceptance.flow"   # derive the ordered points from the flow band gridpoints
+hold_seconds     = 4.0                  # sim-source hint only: how long the sim parks at each
+                                        # point so the settle window can form (a live run
+                                        # ignores it — the operator holds; settle decides capture)
+
+[test.settle]
+# Default settle condition, per point. Pressure is the settle channel because it is the
+# SWEPT, always-moving variable: "pressure stable" genuinely means "arrived". (Flow would
+# falsely read as settled mid-ramp below the PC knee, where it sits at no-load regardless of
+# pressure — so flow-stability is the wrong gate for a pressure-swept test on this pump.)
+channel       = "pressure"
+at_target_bar = 5.0     # must be within ±5 bar of the point for the whole dwell (parked, not passing)
+stable_within = 6.0     # pressure window spread (max−min) ≤ 6 bar … (a rising ramp moves ~8+ bar/window)
+for_ticks     = 7       # … held for 7 consecutive samples (~0.7 s @ 10 Hz; matches the smoothing window)
